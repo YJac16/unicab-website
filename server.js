@@ -62,7 +62,7 @@ app.use((req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Cape Elite site running on port ${PORT}`);
+  console.log(`UNICAB Travel & Tours site running on port ${PORT}`);
   if (NODE_ENV === "production") {
     console.log(`Production mode - serving from ${distPath}`);
   }

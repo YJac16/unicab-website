@@ -1,0 +1,629 @@
+import React, { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { tours, vehicles, drivers, reviews, membershipPlans } from "../data";
+
+const formatStars = (rating) => {
+  const fullStars = Math.round(rating);
+  return "★".repeat(fullStars) + "☆".repeat(5 - fullStars);
+};
+
+const navItems = [
+  { id: "home", label: "Home" },
+  { id: "tours", label: "Tours", path: "/tours" },
+  { id: "vehicles", label: "Vehicles", path: "/vehicles" },
+  { id: "drivers", label: "Drivers", path: "/drivers" },
+  { id: "reviews", label: "Reviews", path: "/reviews" },
+  { id: "membership", label: "Membership", path: "/membership" },
+  { id: "contact", label: "Contact" }
+];
+
+function Home() {
+  const [navOpen, setNavOpen] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [successMsg, setSuccessMsg] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const year = useMemo(() => new Date().getFullYear(), []);
+
+  const scrollToSection = (id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ behavior: prefersReduced ? "auto" : "smooth", block: "start" });
+    setNavOpen(false);
+  };
+
+  const validate = (data) => {
+    const nextErrors = {};
+    if (!data.name || data.name.trim().length < 2) {
+      nextErrors.name = "Please provide your full name.";
+    }
+    if (!data.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+      nextErrors.email = "Please provide a valid email address.";
+    }
+    if (!data.phone) {
+      nextErrors.phone = "Please provide a contact number.";
+    }
+    if (!data.message || data.message.trim().length < 10) {
+      nextErrors.message = "Please provide a message (at least 10 characters).";
+    }
+    return nextErrors;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const data = {
+      name: formData.get("name"),
+      email: formData.get("email"),
+      phone: formData.get("phone"),
+      message: formData.get("message")
+    };
+
+    const nextErrors = validate(data);
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
+      return;
+    }
+
+    setErrors({});
+    setSubmitting(true);
+
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      });
+
+      if (response.ok) {
+        setSuccessMsg("Thank you! We'll be in touch soon.");
+        e.target.reset();
+      } else {
+        setErrors({ submit: "Something went wrong. Please try again." });
+      }
+    } catch (err) {
+      setErrors({ submit: "Network error. Please try again." });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleTourDetails = (tour) => {
+    alert(
+      `${tour.name}\n\n${tour.description}\n\nDuration: ${tour.duration}\nRating: ${formatStars(tour.rating)}\n${tour.priceFrom}\n\nHighlights:\n${tour.highlights.map((h) => `• ${h}`).join("\n")}`
+    );
+  };
+
+  return (
+    <>
+      <header className="site-header">
+        <div className="container header-inner">
+          <Link to="/" className="logo" aria-label="UNICAB Travel & Tours - Home">
+            <img src="/logo-white.png" alt="UNICAB Travel & Tours" className="logo-img" />
+          </Link>
+
+          <button
+            className="nav-toggle"
+            aria-label="Toggle navigation"
+            aria-expanded={navOpen}
+            onClick={() => setNavOpen((o) => !o)}
+          >
+            <span className="nav-toggle-bar" />
+            <span className="nav-toggle-bar" />
+          </button>
+
+          <nav className={`main-nav ${navOpen ? "open" : ""}`} aria-label="Primary">
+            <ul>
+              {navItems.map((item) => (
+                <li key={item.id}>
+                  {item.path ? (
+                    <Link className="link-button" to={item.path}>
+                      {item.label}
+                    </Link>
+                  ) : (
+                    <a className="link-button" href={`#${item.id}`} onClick={() => scrollToSection(item.id)}>
+                      {item.label}
+                    </a>
+                  )}
+                </li>
+              ))}
+              <li className="cta-nav">
+                <a className="btn btn-primary btn-compact" href="#contact" onClick={() => scrollToSection("contact")}>
+                  Book Now
+                </a>
+              </li>
+            </ul>
+          </nav>
+        </div>
+      </header>
+
+      <main>
+        <section id="home" className="hero" aria-labelledby="hero-heading">
+          <div className="hero-bg-image"></div>
+          <div className="hero-overlay"></div>
+          <div className="container hero-inner hero-centered">
+            <h1 id="hero-heading">
+              <span className="hero-title-main">Discover Cape Town</span>
+              <span className="hero-title-accent">In Premium Style</span>
+            </h1>
+            <p className="hero-subtitle">
+              Private tours, airport transfers, and customized experiences with licensed guides.
+            </p>
+            <div className="hero-actions">
+              <button className="btn btn-primary" onClick={() => scrollToSection("tours")}>
+                Explore Tours
+              </button>
+              <button className="btn btn-grey" onClick={() => scrollToSection("contact")}>
+                Book a Transfer
+              </button>
+            </div>
+            <div className="hero-stats">
+              <div className="hero-stat">
+                <span className="stat-value">35+</span>
+                <span className="stat-label">Years of service</span>
+              </div>
+              <div className="hero-stat">
+                <span className="stat-value">Safe &amp; Reliable</span>
+                <span className="stat-label">Fully licensed &amp; insured</span>
+              </div>
+              <div className="hero-stat">
+                <span className="stat-value">24/7</span>
+                <span className="stat-label">Operations &amp; dispatch</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="about" className="section about slim">
+          <div className="container section-inner center">
+            <p className="eyebrow">About Us</p>
+            <h2>Quietly Moving Cape Town's Guests Since 1989</h2>
+            <div className="section-intro max-720" style={{ textAlign: "left", maxWidth: "900px" }}>
+              <p>
+                Since its launch in 1989, the company has grown into one of the most recognizable 'people mover' brands
+                in and around Cape Town.
+              </p>
+              <p>
+                From initially servicing the iconic Mount Nelson Hotel with a fleet of chauffeur driven luxury vehicles,
+                UNICAB also became the first external operator of The Mount Nelson's Travel Desk. To date, we have
+                exclusive service level agreements with more than 90% of Cape Town's Hotel & Guest House infrastructure
+                along the Atlantic Seaboard, Cape Town's Waterfront hub, the inner city & the southern suburbs.
+              </p>
+              <p>
+                Our expanding clientele base as well as our service diversification necessitated a rapid increase in
+                our fleet of vehicles.
+              </p>
+              <p>
+                Rapid expansion & diversification also necessitated increasing investments in our fleet management
+                systems. To better serve our clients and streamline operations, UNICAB is developing its own mobile
+                application, which will be available soon.
+              </p>
+              <p>
+                With our advanced Vehicle Management Systems and commitment to innovation, UNICAB has managed to remain
+                a market leader in safe and reliable transport solutions to the tourist, leisure and corporate markets.
+              </p>
+              <p style={{ marginTop: "1.5rem", fontStyle: "italic", color: "var(--text-soft)" }}>
+                We no longer rely on old contracts but have built new relationships and pride ourselves on professional
+                conduct and service excellence.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="section why-unicab">
+          <div className="container section-inner">
+            <header className="section-header center">
+              <p className="eyebrow">Why UNICAB</p>
+              <h2>Your Trusted Travel Partner</h2>
+              <p className="section-intro max-720">
+                Experience the difference of premium service with licensed guides, fully insured vehicles, and
+                punctuality you can count on.
+              </p>
+            </header>
+            <div className="why-grid">
+              <div className="why-card">
+                <div className="why-icon">✓</div>
+                <h3>Licensed &amp; Insured</h3>
+                <p>All our vehicles and drivers are fully licensed and comprehensively insured for your peace of mind.</p>
+              </div>
+              <div className="why-card">
+                <div className="why-icon">👨‍🏫</div>
+                <h3>Expert Guides</h3>
+                <p>Our professional guides are knowledgeable, friendly, and passionate about sharing Cape Town's best.</p>
+              </div>
+              <div className="why-card">
+                <div className="why-icon">⏰</div>
+                <h3>Always On Time</h3>
+                <p>We understand the value of your time. Punctuality and reliability are at the heart of our service.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="tours" className="section tours">
+          <div className="container section-inner">
+            <header className="section-header center">
+              <p className="eyebrow">Signature Experiences</p>
+              <h2>Curated Private Tours</h2>
+              <p className="section-intro max-720">
+                Scenic drives, iconic landmarks, and bespoke itineraries designed for families, couples, and corporate
+                travellers.
+              </p>
+            </header>
+            <div className="cards-grid" aria-live="polite">
+              {tours.slice(0, 3).map((tour) => (
+                <article className="card tour-card soft" key={tour.id}>
+                  {tour.image && (
+                    <div className="tour-image-wrapper">
+                      <img src={tour.image} alt={tour.name} className="tour-image" loading="lazy" />
+                    </div>
+                  )}
+                  <div className="card-header">
+                    <div>
+                      <h3 className="card-title">{tour.name}</h3>
+                      <p className="tour-duration">{tour.duration}</p>
+                      {tour.rating && (
+                        <div className="rating" style={{ marginTop: "0.5rem" }}>
+                          <span className="stars" aria-hidden="true">
+                            {formatStars(tour.rating)}
+                          </span>
+                          <span style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>
+                            {tour.rating.toFixed(1)}/5
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    {tour.promotion ? (
+                      <span className="badge badge-gold" aria-label="Holiday promotion">
+                        {tour.promotion}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="card-meta">{tour.description}</p>
+                  <ul className="tour-highlights">
+                    {tour.highlights.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                  <div className="card-footer">
+                    <div>
+                      <div className="tour-price">{tour.priceFrom}</div>
+                      <div className="rating">
+                        <span className="stars" aria-hidden="true">
+                          {formatStars(tour.rating)}
+                        </span>
+                        <span>Rated {tour.rating.toFixed(1)}/5</span>
+                      </div>
+                    </div>
+                    <Link to={`/tours/${tour.id}`} className="btn btn-outline" style={{ textDecoration: "none" }}>
+                      View Details
+                    </Link>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div style={{ textAlign: "center", marginTop: "2rem" }}>
+              <Link to="/tours" className="btn btn-primary">
+                View All Tours
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        <section id="vehicles" className="section vehicles">
+          <div className="container section-inner">
+            <header className="section-header center">
+              <p className="eyebrow">Our Fleet</p>
+              <h2>Luxury Vehicles for Every Journey</h2>
+            </header>
+            <div className="cards-grid vehicles-grid" aria-live="polite">
+              {vehicles.map((vehicle) => (
+                <article className="card soft" key={vehicle.name}>
+                  {vehicle.image && (
+                    <div className="vehicle-image-wrapper">
+                      <img src={vehicle.image} alt={vehicle.name} className="vehicle-image" loading="lazy" />
+                    </div>
+                  )}
+                  <div className="card-header">
+                    <div>
+                      <h3 className="card-title">{vehicle.name}</h3>
+                      <p className="card-meta">{vehicle.tag}</p>
+                    </div>
+                    <span className="badge badge-teal">Fleet</span>
+                  </div>
+                  <div className="card-body">
+                    <div className="vehicle-capacity">
+                      <span className="chip">Capacity: {vehicle.capacity}</span>
+                      <span className="chip">Luggage: {vehicle.luggage}</span>
+                    </div>
+                    <ul className="vehicle-features">
+                      {vehicle.features.map((f) => (
+                        <li key={f}>{f}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="drivers" className="section drivers">
+          <div className="container section-inner">
+            <header className="section-header center">
+              <p className="eyebrow">Our Drivers</p>
+              <h2>Professional, Experienced, and Personable</h2>
+              <p className="section-intro max-720">
+                Our drivers are more than chauffeurs—they're your local guides, ensuring a safe, comfortable, and
+                informative journey.
+              </p>
+            </header>
+            <div className="cards-grid" aria-live="polite">
+              {[...drivers].sort((a, b) => (b.rating || 0) - (a.rating || 0)).map((driver) => (
+                <article className="card soft" key={driver.name}>
+                  <div className="card-header" style={{ display: "flex", alignItems: "center", gap: "1.5rem", flexDirection: "row-reverse" }}>
+                    {driver.image && (
+                      <img
+                        src={driver.image}
+                        alt={driver.name}
+                        style={{
+                          width: "160px",
+                          height: "160px",
+                          borderRadius: "50%",
+                          objectFit: "cover",
+                          border: "2px solid var(--border-gold)",
+                          flexShrink: 0
+                        }}
+                      />
+                    )}
+                    <div style={{ flex: 1 }}>
+                      <h3 className="card-title">{driver.name}</h3>
+                      <p className="card-meta">{driver.experience}</p>
+                      {driver.rating && (
+                        <div className="rating" style={{ marginTop: "0.5rem" }}>
+                          <span className="stars" aria-hidden="true">
+                            {formatStars(driver.rating)}
+                          </span>
+                          <span style={{ fontSize: "0.8rem", marginLeft: "0.5rem" }}>{driver.rating.toFixed(1)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {driver.languages && driver.languages.length > 0 && (
+                    <p className="card-meta" style={{ marginTop: "0.5rem" }}>
+                      <strong>Languages:</strong> {driver.languages.join(", ")}
+                    </p>
+                  )}
+                  {driver.skills && driver.skills.length > 0 && (
+                    <div style={{ marginTop: "0.8rem" }}>
+                      <p className="card-meta" style={{ marginBottom: "0.4rem" }}>
+                        <strong>Expertise:</strong>
+                      </p>
+                      <ul style={{ margin: 0, paddingLeft: "1.2rem", fontSize: "0.85rem", color: "var(--text-soft)" }}>
+                        {driver.skills.map((skill, idx) => (
+                          <li key={idx} style={{ marginBottom: "0.3rem" }}>
+                            {skill}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="reviews" className="section reviews">
+          <div className="container section-inner">
+            <header className="section-header center">
+              <p className="eyebrow">Client Reviews</p>
+              <h2>What Our Guests Say</h2>
+            </header>
+            <div className="cards-grid" aria-live="polite">
+              {reviews.map((review, index) => (
+                <article className="card soft" key={review.id || index}>
+                  <div className="card-header">
+                    <div>
+                      <h3 className="card-title">{review.name}</h3>
+                      <p className="card-meta">{review.tourName}</p>
+                    </div>
+                    <div className="rating">
+                      <span className="stars" aria-hidden="true">
+                        {formatStars(review.rating)}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="card-body">{review.text}</p>
+                  <div className="review-footer">
+                    <span className="chip">{review.tourName}</span>
+                    <span className="chip">Verified UNICAB traveller</span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="membership" className="section membership">
+          <div className="container section-inner">
+            <header className="section-header center">
+              <p className="eyebrow">Membership</p>
+              <h2>Exclusive Travel Benefits</h2>
+              <p className="section-intro max-720">
+                Join our membership program for priority booking, special rates, and exclusive access to premium
+                experiences.
+              </p>
+            </header>
+            <div className="cards-grid" aria-live="polite">
+              {membershipPlans.map((plan) => (
+                <article className="card soft" key={plan.id}>
+                  <div className="card-header">
+                    <h3 className="card-title">{plan.name}</h3>
+                    <span className="badge badge-gold">{plan.price}</span>
+                  </div>
+                  <ul className="card-body">
+                    {plan.benefits.map((benefit) => (
+                      <li key={benefit}>{benefit}</li>
+                    ))}
+                  </ul>
+                  <div className="card-footer">
+                    <button
+                      className="btn btn-primary"
+                      onClick={() =>
+                        alert(
+                          `You selected the ${plan.name} plan.\n\n${plan.price}\n\nA UNICAB representative will contact you to finalise membership details.`
+                        )
+                      }
+                    >
+                      Join Now
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="contact" className="section contact">
+          <div className="container section-inner">
+            <header className="section-header center">
+              <p className="eyebrow">Contact Us</p>
+              <h2>Get in Touch</h2>
+              <p className="section-intro max-720">
+                Ready to plan your Cape Town adventure? Contact us today and let us create a personalized experience for
+                you.
+              </p>
+            </header>
+            <div className="contact-grid">
+              <form className="contact-form" onSubmit={handleSubmit} noValidate>
+                {successMsg && (
+                  <div className="form-success" role="alert">
+                    {successMsg}
+                  </div>
+                )}
+                {errors.submit && (
+                  <div className="form-error" role="alert">
+                    {errors.submit}
+                  </div>
+                )}
+                <div className="form-row">
+                  <div className="form-field">
+                    <label htmlFor="name">Full Name</label>
+                    <input type="text" id="name" name="name" required aria-invalid={!!errors.name} />
+                    {errors.name && <span className="field-error">{errors.name}</span>}
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="email">Email</label>
+                    <input type="email" id="email" name="email" required aria-invalid={!!errors.email} />
+                    {errors.email && <span className="field-error">{errors.email}</span>}
+                  </div>
+                </div>
+                <div className="form-field">
+                  <label htmlFor="phone">Phone</label>
+                  <input type="tel" id="phone" name="phone" required aria-invalid={!!errors.phone} />
+                  {errors.phone && <span className="field-error">{errors.phone}</span>}
+                </div>
+                <div className="form-field">
+                  <label htmlFor="message">Message</label>
+                  <textarea id="message" name="message" rows="5" required aria-invalid={!!errors.message}></textarea>
+                  {errors.message && <span className="field-error">{errors.message}</span>}
+                </div>
+                <button type="submit" className="btn btn-primary" disabled={submitting}>
+                  {submitting ? "Sending..." : "Send Message"}
+                </button>
+              </form>
+              <aside className="contact-aside">
+                <div className="contact-card">
+                  <h3>Contact Information</h3>
+                  <ul className="contact-list">
+                    <li>
+                      <strong>Email:</strong>{" "}
+                      <a href="mailto:info@unicabtravel.co.za" style={{ color: "var(--accent-gold)", textDecoration: "none" }}>
+                        info@unicabtravel.co.za
+                      </a>
+                    </li>
+                    <li>
+                      <strong>Phone:</strong>{" "}
+                      <a
+                        href="https://wa.me/27822818105"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: "var(--accent-gold)", textDecoration: "none" }}
+                      >
+                        +27 82 281 8105
+                      </a>
+                    </li>
+                    <li>
+                      <strong>Hours:</strong> 24/7 Operations &amp; Dispatch
+                    </li>
+                  </ul>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer className="site-footer">
+        <div className="container footer-inner">
+          <p>
+            &copy; <span>{year}</span> UNICAB Travel &amp; Tours. All rights reserved.
+          </p>
+          <p className="footer-meta">Premium private transfers &amp; tours in Cape Town and the Western Cape.</p>
+          <div className="footer-contact" style={{ marginTop: "1rem", fontSize: "0.9rem", color: "var(--text-soft)" }}>
+            <p style={{ margin: "0.25rem 0" }}>
+              <a href="mailto:info@unicabtravel.co.za" style={{ color: "var(--accent-gold)", textDecoration: "none", marginRight: "1rem" }}>
+                info@unicabtravel.co.za
+              </a>
+              <a
+                href="https://wa.me/27822818105"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "var(--accent-gold)", textDecoration: "none", marginRight: "1rem" }}
+              >
+                +27 82 281 8105
+              </a>
+              <a
+                href="https://www.unicab.co.za/"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "var(--accent-gold)", textDecoration: "none" }}
+              >
+                Cab &amp; Staff Transport
+              </a>
+            </p>
+          </div>
+        </div>
+      </footer>
+
+      {/* WhatsApp Chat Button */}
+      <a
+        href="https://wa.me/27822818105?text=Hello%2C%20I%27d%20like%20to%20inquire%20about%20your%20services"
+        className="whatsapp-button"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Chat with us on WhatsApp"
+      >
+        <svg
+          width="28"
+          height="28"
+          viewBox="0 0 24 24"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="whatsapp-icon"
+        >
+          <path
+            d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"
+            fill="currentColor"
+          />
+        </svg>
+        <span className="whatsapp-tooltip">Chat with us</span>
+      </a>
+    </>
+  );
+}
+
+export default Home;
+
