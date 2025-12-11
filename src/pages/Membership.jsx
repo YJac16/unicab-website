@@ -22,8 +22,8 @@ function Membership() {
           <button
             className="nav-toggle"
             aria-label="Toggle navigation"
-            aria-expanded={false}
-            style={{ display: "none" }}
+            aria-expanded={navOpen}
+            onClick={() => setNavOpen((o) => !o)}
           >
             <span className="nav-toggle-bar" />
             <span className="nav-toggle-bar" />
