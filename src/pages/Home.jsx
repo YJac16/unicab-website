@@ -22,8 +22,18 @@ function Home() {
   const [errors, setErrors] = useState({});
   const [successMsg, setSuccessMsg] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [showBackToTop, setShowBackToTop] = useState(false);
 
   const year = useMemo(() => new Date().getFullYear(), []);
+
+  // Back to top button visibility
+  React.useEffect(() => {
+    const handleScroll = () => {
+      setShowBackToTop(window.scrollY > 400);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const scrollToSection = (id) => {
     const el = document.getElementById(id);
@@ -122,14 +132,14 @@ function Home() {
                       {item.label}
                     </Link>
                   ) : (
-                    <a className="link-button" href={`#${item.id}`} onClick={() => scrollToSection(item.id)}>
+                    <a className="link-button" href={`#${item.id}`} onClick={() => { scrollToSection(item.id); setNavOpen(false); }}>
                       {item.label}
                     </a>
                   )}
                 </li>
               ))}
               <li className="cta-nav">
-                <a className="btn btn-primary btn-compact" href="#contact" onClick={() => scrollToSection("contact")}>
+                <a className="btn btn-primary btn-compact" href="#contact" onClick={() => { scrollToSection("contact"); setNavOpen(false); }}>
                   Book Now
                 </a>
               </li>
@@ -621,6 +631,15 @@ function Home() {
         </svg>
         <span className="whatsapp-tooltip">Chat with us</span>
       </a>
+
+      {/* Back to Top Button */}
+      <button
+        className={`back-to-top ${showBackToTop ? "visible" : ""}`}
+        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        aria-label="Back to top"
+      >
+        ↑
+      </button>
     </>
   );
 }

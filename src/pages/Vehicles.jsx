@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { vehicles } from "../data";
+import BackToTop from "../components/BackToTop";
 
 function Vehicles() {
   return (
@@ -14,52 +15,52 @@ function Vehicles() {
           <button
             className="nav-toggle"
             aria-label="Toggle navigation"
-            aria-expanded={false}
-            style={{ display: "none" }}
+            aria-expanded={navOpen}
+            onClick={() => setNavOpen((o) => !o)}
           >
             <span className="nav-toggle-bar" />
             <span className="nav-toggle-bar" />
           </button>
 
-          <nav className="main-nav" aria-label="Primary">
+          <nav className={`main-nav ${navOpen ? "open" : ""}`} aria-label="Primary">
             <ul>
               <li>
-                <Link className="link-button" to="/">
+                <Link className="link-button" to="/" onClick={() => setNavOpen(false)}>
                   Home
                 </Link>
               </li>
               <li>
-                <Link className="link-button" to="/tours">
+                <Link className="link-button" to="/tours" onClick={() => setNavOpen(false)}>
                   Tours
                 </Link>
               </li>
               <li>
-                <Link className="link-button" to="/vehicles">
+                <Link className="link-button" to="/vehicles" onClick={() => setNavOpen(false)}>
                   Vehicles
                 </Link>
               </li>
               <li>
-                <Link className="link-button" to="/drivers">
+                <Link className="link-button" to="/drivers" onClick={() => setNavOpen(false)}>
                   Drivers
                 </Link>
               </li>
               <li>
-                <Link className="link-button" to="/reviews">
+                <Link className="link-button" to="/reviews" onClick={() => setNavOpen(false)}>
                   Reviews
                 </Link>
               </li>
               <li>
-                <Link className="link-button" to="/membership">
+                <Link className="link-button" to="/membership" onClick={() => setNavOpen(false)}>
                   Membership
                 </Link>
               </li>
               <li>
-                <a className="link-button" href="/#contact">
+                <a className="link-button" href="/#contact" onClick={() => setNavOpen(false)}>
                   Contact
                 </a>
               </li>
               <li className="cta-nav">
-                <a className="btn btn-primary btn-compact" href="/#contact">
+                <a className="btn btn-primary btn-compact" href="/#contact" onClick={() => setNavOpen(false)}>
                   Book Now
                 </a>
               </li>
@@ -168,6 +169,8 @@ function Vehicles() {
         </svg>
         <span className="whatsapp-tooltip">Chat with us</span>
       </a>
+
+      <BackToTop />
     </div>
   );
 }

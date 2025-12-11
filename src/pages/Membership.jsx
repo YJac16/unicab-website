@@ -1,8 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { membershipPlans } from "../data";
+import BackToTop from "../components/BackToTop";
 
 function Membership() {
+  const [navOpen, setNavOpen] = useState(false);
   const handleJoin = (plan) => {
     alert(
       `You selected the ${plan.name} plan.\n\n${plan.price}\n\nA UNICAB representative will contact you to finalise membership details.`
@@ -165,6 +167,8 @@ function Membership() {
         </svg>
         <span className="whatsapp-tooltip">Chat with us</span>
       </a>
+
+      <BackToTop />
     </div>
   );
 }
