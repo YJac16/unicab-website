@@ -25,34 +25,34 @@ function Vehicles() {
           <nav className={`main-nav ${navOpen ? "open" : ""}`} aria-label="Primary">
             <ul>
               <li>
-                <Link className="link-button" to="/" onClick={() => setNavOpen(false)}>
+                <a className="link-button" href="/" target="_blank" rel="noopener noreferrer" onClick={() => setNavOpen(false)}>
                   Home
-                </Link>
+                </a>
               </li>
               <li>
-                <Link className="link-button" to="/tours" onClick={() => setNavOpen(false)}>
+                <a className="link-button" href="/tours" target="_blank" rel="noopener noreferrer" onClick={() => setNavOpen(false)}>
                   Tours
-                </Link>
+                </a>
               </li>
               <li>
-                <Link className="link-button" to="/vehicles" onClick={() => setNavOpen(false)}>
+                <a className="link-button" href="/vehicles" target="_blank" rel="noopener noreferrer" onClick={() => setNavOpen(false)}>
                   Vehicles
-                </Link>
+                </a>
               </li>
               <li>
-                <Link className="link-button" to="/drivers" onClick={() => setNavOpen(false)}>
+                <a className="link-button" href="/drivers" target="_blank" rel="noopener noreferrer" onClick={() => setNavOpen(false)}>
                   Drivers
-                </Link>
+                </a>
               </li>
               <li>
-                <Link className="link-button" to="/reviews" onClick={() => setNavOpen(false)}>
+                <a className="link-button" href="/reviews" target="_blank" rel="noopener noreferrer" onClick={() => setNavOpen(false)}>
                   Reviews
-                </Link>
+                </a>
               </li>
               <li>
-                <Link className="link-button" to="/membership" onClick={() => setNavOpen(false)}>
+                <a className="link-button" href="/membership" target="_blank" rel="noopener noreferrer" onClick={() => setNavOpen(false)}>
                   Membership
-                </Link>
+                </a>
               </li>
               <li>
                 <a className="link-button" href="/#contact" onClick={() => setNavOpen(false)}>

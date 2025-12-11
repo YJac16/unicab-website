@@ -128,9 +128,9 @@ function Home() {
               {navItems.map((item) => (
                 <li key={item.id}>
                   {item.path ? (
-                    <Link className="link-button" to={item.path}>
+                    <a className="link-button" href={item.path} target="_blank" rel="noopener noreferrer" onClick={() => setNavOpen(false)}>
                       {item.label}
-                    </Link>
+                    </a>
                   ) : (
                     <a className="link-button" href={`#${item.id}`} onClick={() => { scrollToSection(item.id); setNavOpen(false); }}>
                       {item.label}
