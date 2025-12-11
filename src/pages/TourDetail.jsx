@@ -83,92 +83,68 @@ function TourDetail() {
           <nav className={`main-nav ${navOpen ? "open" : ""}`} aria-label="Primary">
             <ul>
               <li>
-                <a 
-                  className="link-button" 
-                  href="/"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    window.open(window.location.origin + '/', '_blank', 'noopener,noreferrer');
-                    setNavOpen(false);
-                  }}
-                >
+                <Link className="link-button" to="/" onClick={() => setNavOpen(false)}>
                   Home
-                </a>
+                </Link>
               </li>
               <li>
-                <a 
-                  className="link-button" 
-                  href="/tours"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    window.open(window.location.origin + '/tours', '_blank', 'noopener,noreferrer');
-                    setNavOpen(false);
-                  }}
-                >
+                <Link className="link-button" to="/tours" onClick={() => setNavOpen(false)}>
                   Tours
-                </a>
+                </Link>
               </li>
               <li>
-                <a 
-                  className="link-button" 
-                  href="/vehicles"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    window.open(window.location.origin + '/vehicles', '_blank', 'noopener,noreferrer');
-                    setNavOpen(false);
-                  }}
-                >
+                <Link className="link-button" to="/vehicles" onClick={() => setNavOpen(false)}>
                   Vehicles
-                </a>
+                </Link>
               </li>
               <li>
-                <a 
-                  className="link-button" 
-                  href="/drivers"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    window.open(window.location.origin + '/drivers', '_blank', 'noopener,noreferrer');
-                    setNavOpen(false);
-                  }}
-                >
+                <Link className="link-button" to="/drivers" onClick={() => setNavOpen(false)}>
                   Drivers
-                </a>
+                </Link>
               </li>
               <li>
-                <a 
-                  className="link-button" 
-                  href="/reviews"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    window.open(window.location.origin + '/reviews', '_blank', 'noopener,noreferrer');
-                    setNavOpen(false);
-                  }}
-                >
+                <Link className="link-button" to="/reviews" onClick={() => setNavOpen(false)}>
                   Reviews
-                </a>
+                </Link>
               </li>
               <li>
-                <a 
+                <Link className="link-button" to="/membership" onClick={() => setNavOpen(false)}>
+                  Membership
+                </Link>
+              </li>
+              <li>
+                <Link 
                   className="link-button" 
-                  href="/membership"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    window.open(window.location.origin + '/membership', '_blank', 'noopener,noreferrer');
+                  to="/"
+                  onClick={() => {
                     setNavOpen(false);
+                    setTimeout(() => {
+                      const contactSection = document.getElementById('contact');
+                      if (contactSection) {
+                        contactSection.scrollIntoView({ behavior: 'smooth' });
+                      }
+                    }, 100);
                   }}
                 >
-                  Membership
-                </a>
-              </li>
-              <li>
-                <a className="link-button" href="/#contact" onClick={() => setNavOpen(false)}>
                   Contact
-                </a>
+                </Link>
               </li>
               <li className="cta-nav">
-                <a className="btn btn-primary btn-compact" href="/#contact" onClick={() => setNavOpen(false)}>
+                <Link 
+                  className="btn btn-primary btn-compact" 
+                  to="/"
+                  onClick={() => {
+                    setNavOpen(false);
+                    setTimeout(() => {
+                      const contactSection = document.getElementById('contact');
+                      if (contactSection) {
+                        contactSection.scrollIntoView({ behavior: 'smooth' });
+                      }
+                    }, 100);
+                  }}
+                >
                   Book Now
-                </a>
+                </Link>
               </li>
             </ul>
           </nav>
