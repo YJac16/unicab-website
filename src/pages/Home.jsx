@@ -128,7 +128,15 @@ function Home() {
               {navItems.map((item) => (
                 <li key={item.id}>
                   {item.path ? (
-                    <a className="link-button" href={item.path} target="_blank" rel="noopener noreferrer" onClick={() => setNavOpen(false)}>
+                    <a 
+                      className="link-button" 
+                      href={item.path}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        window.open(window.location.origin + item.path, '_blank', 'noopener,noreferrer');
+                        setNavOpen(false);
+                      }}
+                    >
                       {item.label}
                     </a>
                   ) : (

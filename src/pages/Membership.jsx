@@ -32,32 +32,80 @@ function Membership() {
           <nav className={`main-nav ${navOpen ? "open" : ""}`} aria-label="Primary">
             <ul>
               <li>
-                <a className="link-button" href="/" target="_blank" rel="noopener noreferrer" onClick={() => setNavOpen(false)}>
+                <a 
+                  className="link-button" 
+                  href="/"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.open(window.location.origin + '/', '_blank', 'noopener,noreferrer');
+                    setNavOpen(false);
+                  }}
+                >
                   Home
                 </a>
               </li>
               <li>
-                <a className="link-button" href="/tours" target="_blank" rel="noopener noreferrer" onClick={() => setNavOpen(false)}>
+                <a 
+                  className="link-button" 
+                  href="/tours"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.open(window.location.origin + '/tours', '_blank', 'noopener,noreferrer');
+                    setNavOpen(false);
+                  }}
+                >
                   Tours
                 </a>
               </li>
               <li>
-                <a className="link-button" href="/vehicles" target="_blank" rel="noopener noreferrer" onClick={() => setNavOpen(false)}>
+                <a 
+                  className="link-button" 
+                  href="/vehicles"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.open(window.location.origin + '/vehicles', '_blank', 'noopener,noreferrer');
+                    setNavOpen(false);
+                  }}
+                >
                   Vehicles
                 </a>
               </li>
               <li>
-                <a className="link-button" href="/drivers" target="_blank" rel="noopener noreferrer" onClick={() => setNavOpen(false)}>
+                <a 
+                  className="link-button" 
+                  href="/drivers"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.open(window.location.origin + '/drivers', '_blank', 'noopener,noreferrer');
+                    setNavOpen(false);
+                  }}
+                >
                   Drivers
                 </a>
               </li>
               <li>
-                <a className="link-button" href="/reviews" target="_blank" rel="noopener noreferrer" onClick={() => setNavOpen(false)}>
+                <a 
+                  className="link-button" 
+                  href="/reviews"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.open(window.location.origin + '/reviews', '_blank', 'noopener,noreferrer');
+                    setNavOpen(false);
+                  }}
+                >
                   Reviews
                 </a>
               </li>
               <li>
-                <a className="link-button" href="/membership" target="_blank" rel="noopener noreferrer" onClick={() => setNavOpen(false)}>
+                <a 
+                  className="link-button" 
+                  href="/membership"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.open(window.location.origin + '/membership', '_blank', 'noopener,noreferrer');
+                    setNavOpen(false);
+                  }}
+                >
                   Membership
                 </a>
               </li>
