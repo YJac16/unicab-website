@@ -1033,7 +1033,7 @@ textarea:focus-visible {
     transition: transform var(--transition-med), opacity var(--transition-med);
     max-height: calc(100vh - 80px);
     overflow-y: auto;
-    z-index: 100;
+    z-index: 1000;
   }
 
   .main-nav.open {
@@ -1051,6 +1051,15 @@ textarea:focus-visible {
   .main-nav ul li {
     width: 100%;
     border-bottom: 1px solid var(--border-soft);
+    position: relative;
+  }
+  
+  .main-nav ul li a,
+  .main-nav ul li .link-button {
+    position: relative;
+    z-index: 1;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: rgba(201, 169, 97, 0.2);
   }
 
   .main-nav ul li:last-child {
@@ -1066,6 +1075,13 @@ textarea:focus-visible {
     font-size: 0.9rem;
     width: 100%;
     text-align: left;
+    position: relative;
+    z-index: 1;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  .main-nav .link-button::after {
+    display: none;
   }
 
   .main-nav .btn {
