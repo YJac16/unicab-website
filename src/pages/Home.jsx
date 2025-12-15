@@ -131,7 +131,11 @@ function Home() {
                     <Link 
                       className="link-button" 
                       to={item.path}
-                      onClick={() => setNavOpen(false)}
+                      onClick={(e) => {
+                        setNavOpen(false);
+                        // Ensure navigation happens
+                        window.scrollTo(0, 0);
+                      }}
                     >
                       {item.label}
                     </Link>
