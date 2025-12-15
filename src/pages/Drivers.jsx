@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { drivers } from "../data";
 import BackToTop from "../components/BackToTop";
+import ReviewForm from "../components/ReviewForm";
 
 const formatStars = (rating) => {
   const fullStars = Math.round(rating);
@@ -10,6 +11,42 @@ const formatStars = (rating) => {
 
 function Drivers() {
   const [navOpen, setNavOpen] = useState(false);
+  const [driverReviews, setDriverReviews] = useState({});
+  const [driverRatings, setDriverRatings] = useState({});
+  const [expandedDriver, setExpandedDriver] = useState(null);
+
+  // Load reviews from localStorage
+  useEffect(() => {
+    const allReviews = JSON.parse(localStorage.getItem("unicab_reviews") || "[]");
+    const driverReviewsMap = {};
+    const driverRatingsMap = {};
+
+    drivers.forEach((driver) => {
+      const reviews = allReviews.filter(r => r.type === "driver" && r.targetId === driver.name);
+      driverReviewsMap[driver.name] = reviews;
+      
+      // Calculate average rating
+      if (reviews.length > 0) {
+        const avgRating = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
+        driverRatingsMap[driver.name] = avgRating;
+      } else {
+        driverRatingsMap[driver.name] = driver.rating || null;
+      }
+    });
+
+    setDriverReviews(driverReviewsMap);
+    setDriverRatings(driverRatingsMap);
+  }, []);
+
+  const handleReviewSubmit = (driverName, newReview) => {
+    const currentReviews = driverReviews[driverName] || [];
+    const updatedReviews = [...currentReviews, newReview];
+    setDriverReviews({ ...driverReviews, [driverName]: updatedReviews });
+    
+    // Recalculate average rating
+    const avgRating = updatedReviews.reduce((sum, r) => sum + r.rating, 0) / updatedReviews.length;
+    setDriverRatings({ ...driverRatings, [driverName]: avgRating });
+  };
   
   return (
     <div>
@@ -113,64 +150,136 @@ function Drivers() {
             </header>
 
             <div className="cards-grid" aria-live="polite">
-              {[...drivers].sort((a, b) => (b.rating || 0) - (a.rating || 0)).map((driver) => (
-                <article className="card soft" key={driver.name}>
-                  <div className="card-header" style={{ display: "flex", alignItems: "center", gap: "1.5rem", flexDirection: "row-reverse" }}>
-                    {driver.image && (
-                      <img
-                        src={driver.image}
-                        alt={driver.name}
-                        style={{
-                          width: "180px",
-                          height: "180px",
-                          borderRadius: "50%",
-                          objectFit: "cover",
-                          border: "2px solid var(--border-gold)",
-                          flexShrink: 0
-                        }}
-                      />
+              {[...drivers].sort((a, b) => {
+                const ratingA = driverRatings[a.name] || a.rating || 0;
+                const ratingB = driverRatings[b.name] || b.rating || 0;
+                return ratingB - ratingA;
+              }).map((driver) => {
+                const driverRating = driverRatings[driver.name] !== undefined ? driverRatings[driver.name] : (driver.rating || null);
+                const reviews = driverReviews[driver.name] || [];
+                const isExpanded = expandedDriver === driver.name;
+
+                return (
+                  <article className="card soft" key={driver.name}>
+                    <div className="card-header" style={{ display: "flex", alignItems: "center", gap: "1.5rem", flexDirection: "row-reverse" }}>
+                      {driver.image && (
+                        <img
+                          src={driver.image}
+                          alt={driver.name}
+                          style={{
+                            width: "180px",
+                            height: "180px",
+                            borderRadius: "50%",
+                            objectFit: "cover",
+                            border: "2px solid var(--border-gold)",
+                            flexShrink: 0
+                          }}
+                        />
+                      )}
+                      <div style={{ flex: 1 }}>
+                        <h3 className="card-title">{driver.name}</h3>
+                        <p className="card-meta">{driver.experience}</p>
+                        {driverRating !== null && (
+                          <div className="rating" style={{ marginTop: "0.5rem" }}>
+                            <span className="stars" aria-hidden="true">
+                              {formatStars(driverRating)}
+                            </span>
+                            <span style={{ fontSize: "0.8rem", marginLeft: "0.5rem" }}>
+                              {driverRating.toFixed(1)}
+                              {reviews.length > 0 && (
+                                <span style={{ fontSize: "0.75rem", color: "var(--text-soft)", marginLeft: "0.5rem" }}>
+                                  ({reviews.length} review{reviews.length !== 1 ? "s" : ""})
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {driver.languages && driver.languages.length > 0 && (
+                      <p className="card-meta" style={{ marginTop: "0.5rem" }}>
+                        <strong>Languages:</strong> {driver.languages.join(", ")}
+                      </p>
                     )}
-                    <div style={{ flex: 1 }}>
-                      <h3 className="card-title">{driver.name}</h3>
-                      <p className="card-meta">{driver.experience}</p>
-                      {driver.rating && (
-                        <div className="rating" style={{ marginTop: "0.5rem" }}>
-                          <span className="stars" aria-hidden="true">
-                            {formatStars(driver.rating)}
-                          </span>
-                          <span style={{ fontSize: "0.8rem", marginLeft: "0.5rem" }}>{driver.rating.toFixed(1)}</span>
+                    {driver.skills && driver.skills.length > 0 && (
+                      <div style={{ marginTop: "0.8rem" }}>
+                        <p className="card-meta" style={{ marginBottom: "0.4rem" }}>
+                          <strong>Areas of Expertise:</strong>
+                        </p>
+                        <ul style={{ margin: 0, paddingLeft: "1.2rem", fontSize: "0.85rem", color: "var(--text-soft)" }}>
+                          {driver.skills.map((skill, idx) => (
+                            <li key={idx} style={{ marginBottom: "0.3rem" }}>
+                              {skill}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {driver.quote && (
+                      <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid var(--border-soft)" }}>
+                        <p style={{ fontStyle: "italic", color: "var(--text-soft)", fontSize: "0.9rem" }}>
+                          {driver.quote}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Reviews Section */}
+                    <div style={{ marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "2px solid var(--border-soft)" }}>
+                      <button
+                        onClick={() => setExpandedDriver(isExpanded ? null : driver.name)}
+                        className="btn btn-outline btn-compact"
+                        style={{ width: "100%", marginBottom: "1rem" }}
+                      >
+                        {isExpanded ? "Hide Reviews" : `View Reviews (${reviews.length})`}
+                      </button>
+
+                      {isExpanded && (
+                        <div>
+                          {reviews.length > 0 ? (
+                            <div style={{ marginBottom: "1.5rem" }}>
+                              {reviews.map((review) => (
+                                <div key={review.id} style={{ 
+                                  marginBottom: "1rem", 
+                                  padding: "1rem", 
+                                  background: "var(--bg-soft)", 
+                                  borderRadius: "8px",
+                                  border: "1px solid var(--border-soft)"
+                                }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
+                                    <div>
+                                      <strong style={{ fontSize: "0.9rem" }}>{review.name}</strong>
+                                      <p style={{ fontSize: "0.8rem", color: "var(--text-soft)", margin: "0.25rem 0 0 0" }}>
+                                        {new Date(review.date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+                                      </p>
+                                    </div>
+                                    <div className="rating">
+                                      <span className="stars" aria-hidden="true" style={{ fontSize: "0.9rem" }}>
+                                        {formatStars(review.rating)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <p style={{ fontSize: "0.9rem", margin: 0, color: "var(--text-soft)" }}>{review.text}</p>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p style={{ color: "var(--text-soft)", marginBottom: "1.5rem", fontSize: "0.9rem" }}>
+                              No reviews yet. Be the first to rate {driver.name}!
+                            </p>
+                          )}
+
+                          <ReviewForm
+                            type="driver"
+                            targetId={driver.name}
+                            targetName={driver.name}
+                            onReviewSubmit={(newReview) => handleReviewSubmit(driver.name, newReview)}
+                          />
                         </div>
                       )}
                     </div>
-                  </div>
-                  {driver.languages && driver.languages.length > 0 && (
-                    <p className="card-meta" style={{ marginTop: "0.5rem" }}>
-                      <strong>Languages:</strong> {driver.languages.join(", ")}
-                    </p>
-                  )}
-                  {driver.skills && driver.skills.length > 0 && (
-                    <div style={{ marginTop: "0.8rem" }}>
-                      <p className="card-meta" style={{ marginBottom: "0.4rem" }}>
-                        <strong>Areas of Expertise:</strong>
-                      </p>
-                      <ul style={{ margin: 0, paddingLeft: "1.2rem", fontSize: "0.85rem", color: "var(--text-soft)" }}>
-                        {driver.skills.map((skill, idx) => (
-                          <li key={idx} style={{ marginBottom: "0.3rem" }}>
-                            {skill}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {driver.quote && (
-                    <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid var(--border-soft)" }}>
-                      <p style={{ fontStyle: "italic", color: "var(--text-soft)", fontSize: "0.9rem" }}>
-                        {driver.quote}
-                      </p>
-                    </div>
-                  )}
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           </div>
         </section>

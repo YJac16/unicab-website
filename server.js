@@ -44,6 +44,51 @@ app.post("/api/contact", (req, res) => {
   });
 });
 
+// Review API endpoint
+app.post("/api/review", (req, res) => {
+  const payload = req.body || {};
+  console.log("New review submission:", payload);
+  
+  // Format email content
+  const emailSubject = `New ${payload.type === 'driver' ? 'Driver' : 'Tour'} Review - ${payload.targetName}`;
+  const emailBody = `
+New Review Submission
+
+Review Type: ${payload.type === 'driver' ? 'Driver Review' : 'Tour Review'}
+${payload.type === 'driver' ? 'Driver' : 'Tour'}: ${payload.targetName}
+Reviewer Name: ${payload.name}
+Rating: ${payload.rating}/5
+Review Text:
+${payload.text}
+
+Submitted: ${new Date(payload.date).toLocaleString()}
+
+---
+This is an automated notification from UNICAB Travel & Tours website.
+  `.trim();
+
+  // TODO: Add email service integration here (e.g., SendGrid, Nodemailer, etc.)
+  // Example:
+  // const nodemailer = require('nodemailer');
+  // const transporter = nodemailer.createTransport({...});
+  // await transporter.sendMail({
+  //   from: 'noreply@unicabtraveltours.com',
+  //   to: 'info@unicabtravel.co.za',
+  //   subject: emailSubject,
+  //   text: emailBody
+  // });
+
+  // For now, log the email content (in production, this would send the email)
+  console.log("Email would be sent to: info@unicabtravel.co.za");
+  console.log("Subject:", emailSubject);
+  console.log("Body:", emailBody);
+
+  return res.json({
+    ok: true,
+    message: "Review submitted successfully"
+  });
+});
+
 // Serve built assets if they exist; otherwise advise to run npm run dev
 app.use(serveDist);
 

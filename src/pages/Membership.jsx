@@ -1,14 +1,14 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { membershipPlans } from "../data";
 import BackToTop from "../components/BackToTop";
 
 function Membership() {
   const [navOpen, setNavOpen] = useState(false);
-  const handleJoin = (plan) => {
-    alert(
-      `You selected the ${plan.name} plan.\n\n${plan.price}\n\nA UNICAB representative will contact you to finalise membership details.`
-    );
+  const navigate = useNavigate();
+  
+  const handleJoin = () => {
+    navigate("/membership/comparison");
   };
 
   return (
@@ -119,18 +119,45 @@ function Membership() {
                     <h3 className="card-title">{plan.name}</h3>
                     <span className="badge badge-gold">{plan.price}</span>
                   </div>
+                  {plan.shortDescription && (
+                    <p style={{ 
+                      fontSize: "0.9rem", 
+                      color: "var(--text-soft)", 
+                      marginBottom: "1rem",
+                      lineHeight: "1.6"
+                    }}>
+                      {plan.shortDescription}
+                    </p>
+                  )}
                   <ul className="card-body">
                     {plan.benefits.map((benefit) => (
                       <li key={benefit}>{benefit}</li>
                     ))}
                   </ul>
                   <div className="card-footer">
-                    <button className="btn btn-primary" onClick={() => handleJoin(plan)}>
+                    <button className="btn btn-primary" onClick={handleJoin}>
                       Join Now
                     </button>
                   </div>
                 </article>
               ))}
+            </div>
+            
+            <div style={{ 
+              marginTop: "3rem", 
+              textAlign: "center",
+              paddingTop: "2rem",
+              borderTop: "1px solid var(--border-soft)"
+            }}>
+              <p style={{ 
+                fontSize: "0.85rem", 
+                color: "var(--text-soft)", 
+                lineHeight: "1.6",
+                maxWidth: "800px",
+                margin: "0 auto"
+              }}>
+                Membership benefits apply while subscription is active. Discounts exclude third-party entrance fees, activities, and seasonal surcharges unless stated otherwise. All services are subject to availability.
+              </p>
             </div>
           </div>
         </section>

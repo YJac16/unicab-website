@@ -487,16 +487,13 @@ function Home() {
                     ))}
                   </ul>
                   <div className="card-footer">
-                    <button
+                    <Link
+                      to="/membership/comparison"
                       className="btn btn-primary"
-                      onClick={() =>
-                        alert(
-                          `You selected the ${plan.name} plan.\n\n${plan.price}\n\nA UNICAB representative will contact you to finalise membership details.`
-                        )
-                      }
+                      style={{ textDecoration: "none", display: "inline-block" }}
                     >
                       Join Now
-                    </button>
+                    </Link>
                   </div>
                 </article>
               ))}

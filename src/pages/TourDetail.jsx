@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { tours } from "../data";
 import BackToTop from "../components/BackToTop";
+import ReviewForm from "../components/ReviewForm";
 
 const formatStars = (rating) => {
   const fullStars = Math.round(rating);
@@ -11,7 +12,28 @@ const formatStars = (rating) => {
 function TourDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [navOpen, setNavOpen] = useState(false);
+  const [tourReviews, setTourReviews] = useState([]);
+  const [tourRating, setTourRating] = useState(null);
+  
   const tour = tours.find((t) => t.id === id);
+
+  // Load reviews from localStorage
+  useEffect(() => {
+    if (tour) {
+      const allReviews = JSON.parse(localStorage.getItem("unicab_reviews") || "[]");
+      const reviews = allReviews.filter(r => r.type === "tour" && r.targetId === tour.id);
+      setTourReviews(reviews);
+      
+      // Calculate average rating
+      if (reviews.length > 0) {
+        const avgRating = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
+        setTourRating(avgRating);
+      } else {
+        setTourRating(tour.rating || null);
+      }
+    }
+  }, [tour]);
 
   if (!tour) {
     return (
@@ -180,12 +202,19 @@ function TourDetail() {
                     </span>
                   )}
                 </div>
-                {tour.rating && (
+                {tourRating !== null && (
                   <div className="rating">
                     <span className="stars" aria-hidden="true" style={{ fontSize: "1.5rem" }}>
-                      {formatStars(tour.rating)}
+                      {formatStars(tourRating)}
                     </span>
-                    <span style={{ fontSize: "1rem", marginLeft: "0.5rem" }}>{tour.rating.toFixed(1)}/5</span>
+                    <span style={{ fontSize: "1rem", marginLeft: "0.5rem" }}>
+                      {tourRating.toFixed(1)}/5
+                      {tourReviews.length > 0 && (
+                        <span style={{ fontSize: "0.85rem", color: "var(--text-soft)", marginLeft: "0.5rem" }}>
+                          ({tourReviews.length} review{tourReviews.length !== 1 ? "s" : ""})
+                        </span>
+                      )}
+                    </span>
                   </div>
                 )}
               </div>
@@ -217,15 +246,60 @@ function TourDetail() {
                 </div>
               )}
 
+              {/* Reviews Section */}
+              <div style={{ marginTop: "3rem" }}>
+                <h2 style={{ fontSize: "1.5rem", marginBottom: "1.5rem" }}>Guest Reviews</h2>
+                
+                {tourReviews.length > 0 ? (
+                  <div style={{ marginBottom: "2rem" }}>
+                    {tourReviews.map((review) => (
+                      <article key={review.id} className="card soft" style={{ marginBottom: "1rem" }}>
+                        <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                          <div>
+                            <h3 className="card-title" style={{ margin: 0 }}>{review.name}</h3>
+                            <p className="card-meta" style={{ margin: "0.25rem 0 0 0", fontSize: "0.85rem" }}>
+                              {new Date(review.date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+                            </p>
+                          </div>
+                          <div className="rating">
+                            <span className="stars" aria-hidden="true">
+                              {formatStars(review.rating)}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="card-body" style={{ margin: "0.5rem 0 0 0" }}>{review.text}</p>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ color: "var(--text-soft)", marginBottom: "2rem" }}>
+                    No reviews yet. Be the first to share your experience!
+                  </p>
+                )}
+
+                <ReviewForm
+                  type="tour"
+                  targetId={tour.id}
+                  targetName={tour.name}
+                  onReviewSubmit={(newReview) => {
+                    setTourReviews([...tourReviews, newReview]);
+                    // Recalculate average rating
+                    const allReviews = [...tourReviews, newReview];
+                    const avgRating = allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length;
+                    setTourRating(avgRating);
+                  }}
+                />
+              </div>
+
               <div style={{ marginTop: "3rem", padding: "2rem", backgroundColor: "var(--bg-elevated)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-soft)" }}>
                 <h3 style={{ marginTop: 0, marginBottom: "1rem" }}>Ready to Book?</h3>
                 <p style={{ marginBottom: "1.5rem", color: "var(--text-soft)" }}>
-                  Contact us to book this tour or customize it to your preferences.
+                  Book this tour with our easy online booking system. Select your group size, date, and driver.
                 </p>
                 <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-                  <button className="btn btn-primary" onClick={scrollToContact} style={{ textDecoration: "none" }}>
+                  <Link to={`/tours/${tour.id}/booking`} className="btn btn-primary" style={{ textDecoration: "none" }}>
                     Book Now
-                  </button>
+                  </Link>
                   <Link to="/tours" className="btn btn-outline" style={{ textDecoration: "none" }}>
                     View All Tours
                   </Link>

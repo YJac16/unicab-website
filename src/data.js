@@ -1,12 +1,40 @@
+// Progressive pricing structure for tours
+const getPriceForPax = (pricing, pax) => {
+  if (pax === 1) return pricing[1];
+  if (pax === 2) return pricing[2];
+  if (pax === 3) return pricing[3];
+  if (pax === 4) return pricing[4];
+  if (pax >= 5 && pax <= 6) return pricing["5-6"];
+  if (pax >= 7 && pax <= 10) return pricing["7-10"];
+  if (pax >= 11 && pax <= 14) return pricing["11-14"];
+  if (pax >= 15 && pax <= 18) return pricing["15-18"];
+  if (pax >= 19 && pax <= 22) return pricing["19-22"];
+  return pricing["19-22"]; // Default to max group size
+};
+
 export const tours = [
   {
     id: "ct-city-table-mountain",
     name: "Cape Town & Table Mountain City Tour",
     duration: "Full Day (8–9 hours)",
     rating: 4.9,
-    priceFrom: "From RXXXX",
+    priceFrom: "From R750",
     promotion: "Festive Special",
     image: "/bokaap.jpg",
+    pricing: {
+      1: 4500,
+      2: 2500,
+      3: 1900,
+      4: 1600,
+      "5-6": 1350,
+      "7-10": 1100,
+      "11-14": 950,
+      "15-18": 850,
+      "19-22": 750
+    },
+    getPrice: (pax) => getPriceForPax({
+      1: 4500, 2: 2500, 3: 1900, 4: 1600, "5-6": 1350, "7-10": 1100, "11-14": 950, "15-18": 850, "19-22": 750
+    }, pax),
     highlights: [
       "Ride the cableway up Table Mountain for sweeping city and ocean views (weather permitting)",
       "Guided drive through the City Bowl, Company's Garden, and historic landmarks",
@@ -21,9 +49,23 @@ export const tours = [
     name: "Cape Peninsula Tour with Boulders Beach Penguins",
     duration: "Full Day (8–9 hours)",
     rating: 5.0,
-    priceFrom: "From RXXXX",
+    priceFrom: "From R1,200",
     promotion: "Holiday Favourite",
     image: "/boulders-beach.jpg",
+    pricing: {
+      1: 5500,
+      2: 3200,
+      3: 2500,
+      4: 2100,
+      "5-6": 1850,
+      "7-10": 1600,
+      "11-14": 1450,
+      "15-18": 1300,
+      "19-22": 1200
+    },
+    getPrice: (pax) => getPriceForPax({
+      1: 5500, 2: 3200, 3: 2500, 4: 2100, "5-6": 1850, "7-10": 1600, "11-14": 1450, "15-18": 1300, "19-22": 1200
+    }, pax),
     highlights: [
       "Scenic Chapman's Peak Drive (weather and road permitting)",
       "Cape Point and the Cape of Good Hope Nature Reserve",
@@ -35,12 +77,31 @@ export const tours = [
   },
   {
     id: "garden-route-short",
-    name: "Garden Route Tour (3–4 Days)",
-    duration: "3–4 Days (Customisable)",
+    name: "Garden Route Tour (3 Days / 2 Nights)",
+    duration: "3 Days / 2 Nights",
     rating: 4.8,
-    priceFrom: "From RXXXX",
+    priceFrom: "From R8,300",
     promotion: null,
     image: "/garden-route.jpg",
+    pricing: {
+      2: 13500,
+      "3-4": 11800,
+      "5-6": 10900,
+      "7-10": 9800,
+      "11-14": 9200,
+      "15-18": 8700,
+      "19-22": 8300
+    },
+    getPrice: (pax) => {
+      if (pax === 2) return 13500;
+      if (pax >= 3 && pax <= 4) return 11800;
+      if (pax >= 5 && pax <= 6) return 10900;
+      if (pax >= 7 && pax <= 10) return 9800;
+      if (pax >= 11 && pax <= 14) return 9200;
+      if (pax >= 15 && pax <= 18) return 8700;
+      if (pax >= 19 && pax <= 22) return 8300;
+      return 8300;
+    },
     highlights: [
       "Overnight in key Garden Route towns such as Knysna or Wilderness",
       "Visit ancient forests, lagoons, and pristine beaches",
@@ -48,16 +109,36 @@ export const tours = [
       "Flexible routing tailored to your travel schedule"
     ],
     description:
-      "Designed for travellers with limited time, this private multi-day journey captures the essence of the Garden Route. Enjoy comfortable driving stages, handpicked stops, and curated experiences that can be adapted to families, couples, or small groups."
+      "Designed for travellers with limited time, this private multi-day journey captures the essence of the Garden Route. Enjoy comfortable driving stages, handpicked stops, and curated experiences that can be adapted to families, couples, or small groups.",
+    notes: "Includes guide, transport & accommodation (mid-range, sharing)."
   },
   {
     id: "garden-route-extended",
-    name: "Garden Route Extended Tour (5–6 Days)",
-    duration: "5–6 Days (Customisable)",
+    name: "Garden Route Extended Tour (5 Days / 4 Nights)",
+    duration: "5 Days / 4 Nights",
     rating: 5.0,
-    priceFrom: "From RXXXX",
+    priceFrom: "From R14,200",
     promotion: "Extended Stay Offer",
     image: "/garden-route.jpg",
+    pricing: {
+      2: 22500,
+      "3-4": 19800,
+      "5-6": 18200,
+      "7-10": 16900,
+      "11-14": 15900,
+      "15-18": 14900,
+      "19-22": 14200
+    },
+    getPrice: (pax) => {
+      if (pax === 2) return 22500;
+      if (pax >= 3 && pax <= 4) return 19800;
+      if (pax >= 5 && pax <= 6) return 18200;
+      if (pax >= 7 && pax <= 10) return 16900;
+      if (pax >= 11 && pax <= 14) return 15900;
+      if (pax >= 15 && pax <= 18) return 14900;
+      if (pax >= 19 && pax <= 22) return 14200;
+      return 14200;
+    },
     highlights: [
       "Deeper exploration of towns like Knysna, Plettenberg Bay, and Oudtshoorn",
       "Time for wine tasting, artisanal markets, and coastal walks",
@@ -72,9 +153,23 @@ export const tours = [
     name: "Franschhoek Wine Tram & Winelands Tour",
     duration: "Full Day (8–9 hours)",
     rating: 4.9,
-    priceFrom: "From RXXXX",
+    priceFrom: "From R750",
     promotion: "Wine Lover's Choice",
     image: "/wine-tour.jpg",
+    pricing: {
+      1: 4200,
+      2: 2400,
+      3: 1850,
+      4: 1550,
+      "5-6": 1300,
+      "7-10": 1100,
+      "11-14": 950,
+      "15-18": 850,
+      "19-22": 750
+    },
+    getPrice: (pax) => getPriceForPax({
+      1: 4200, 2: 2400, 3: 1850, 4: 1550, "5-6": 1300, "7-10": 1100, "11-14": 950, "15-18": 850, "19-22": 750
+    }, pax),
     highlights: [
       "Experience the iconic Franschhoek Wine Tram through scenic vineyards",
       "Visit multiple award-winning wine estates for tastings",
@@ -82,16 +177,31 @@ export const tours = [
       "Optional gourmet lunch at a renowned wine estate restaurant"
     ],
     description:
-      "Journey through the heart of the Cape Winelands on this exclusive private tour. Ride the vintage Franschhoek Wine Tram, sample world-class wines, and discover the rich history and stunning landscapes of South Africa's premier wine region."
+      "Journey through the heart of the Cape Winelands on this exclusive private tour. Ride the vintage Franschhoek Wine Tram, sample world-class wines, and discover the rich history and stunning landscapes of South Africa's premier wine region.",
+    notes: "Tastings excluded unless specified."
   },
   {
     id: "aquila-safari",
     name: "Aquila Private Game Reserve Safari",
     duration: "Full Day (8–9 hours)",
     rating: 5.0,
-    priceFrom: "From RXXXX",
+    priceFrom: "From R2,800",
     promotion: "Exclusive Partner",
     image: "/safari.jpg",
+    pricing: {
+      1: 5900,
+      2: 4500,
+      3: 4000,
+      4: 3700,
+      "5-6": 3400,
+      "7-10": 3200,
+      "11-14": 3000,
+      "15-18": 2900,
+      "19-22": 2800
+    },
+    getPrice: (pax) => getPriceForPax({
+      1: 5900, 2: 4500, 3: 4000, 4: 3700, "5-6": 3400, "7-10": 3200, "11-14": 3000, "15-18": 2900, "19-22": 2800
+    }, pax),
     highlights: [
       "Exclusive access to Aquila Private Game Reserve",
       "Game drive to spot the Big 5: lion, elephant, buffalo, rhino, and leopard",
@@ -99,16 +209,31 @@ export const tours = [
       "Optional lunch at the reserve's restaurant with mountain views"
     ],
     description:
-      "Experience an authentic African safari just two hours from Cape Town. We exclusively partner with Aquila Private Game Reserve, offering you a premium wildlife experience with the Big 5 in a malaria-free environment. Perfect for families and first-time safari-goers."
+      "Experience an authentic African safari just two hours from Cape Town. We exclusively partner with Aquila Private Game Reserve, offering you a premium wildlife experience with the Big 5 in a malaria-free environment. Perfect for families and first-time safari-goers.",
+    notes: "Includes transport, lunch & shared game drive."
   },
   {
     id: "west-coast",
     name: "West Coast Coastal & Wildflower Tour",
     duration: "Full Day (8–9 hours)",
     rating: 4.7,
-    priceFrom: "From RXXXX",
+    priceFrom: "From R1,100",
     promotion: "Seasonal Bloom",
     image: "/westcoast.jpg",
+    pricing: {
+      1: 5000,
+      2: 2900,
+      3: 2300,
+      4: 1950,
+      "5-6": 1700,
+      "7-10": 1450,
+      "11-14": 1300,
+      "15-18": 1200,
+      "19-22": 1100
+    },
+    getPrice: (pax) => getPriceForPax({
+      1: 5000, 2: 2900, 3: 2300, 4: 1950, "5-6": 1700, "7-10": 1450, "11-14": 1300, "15-18": 1200, "19-22": 1100
+    }, pax),
     highlights: [
       "Explore charming fishing villages along the West Coast",
       "Seasonal wildflower displays (typically Aug–Sep, weather dependent)",
@@ -120,12 +245,31 @@ export const tours = [
   },
   {
     id: "overland-custom",
-    name: "Overland Custom Multi-Day Tour",
-    duration: "2–10 Days (Fully Bespoke)",
+    name: "Overland Custom Multiday Tour (7–14 Days)",
+    duration: "7–14 Days (Fully Bespoke)",
     rating: 4.9,
-    priceFrom: "From RXXXX",
+    priceFrom: "From R25,000",
     promotion: "Tailor-Made",
     image: "/overland.jpg",
+    pricing: {
+      2: 45000,
+      "3-4": 39000,
+      "5-6": 35000,
+      "7-10": 31000,
+      "11-14": 28500,
+      "15-18": 26500,
+      "19-22": 25000
+    },
+    getPrice: (pax) => {
+      if (pax === 2) return 45000;
+      if (pax >= 3 && pax <= 4) return 39000;
+      if (pax >= 5 && pax <= 6) return 35000;
+      if (pax >= 7 && pax <= 10) return 31000;
+      if (pax >= 11 && pax <= 14) return 28500;
+      if (pax >= 15 && pax <= 18) return 26500;
+      if (pax >= 19 && pax <= 22) return 25000;
+      return 25000;
+    },
     highlights: [
       "Design your own route across the Western Cape and beyond",
       "Combine wine regions, coastal towns, Aquila Private Game Reserve, and landmarks",
@@ -133,7 +277,8 @@ export const tours = [
       "Dedicated travel planning support from our expert team"
     ],
     description:
-      "When you'd like a journey completely shaped around your interests, our team collaborates with you to build a custom overland itinerary. From discreet executive roadshows to once-in-a-lifetime family adventures, every detail is handled with precision."
+      "When you'd like a journey completely shaped around your interests, our team collaborates with you to build a custom overland itinerary. From discreet executive roadshows to once-in-a-lifetime family adventures, every detail is handled with precision.",
+    notes: "Fully custom routes across South Africa. Accommodation level adjustable."
   }
 ];
 
@@ -280,24 +425,26 @@ export const membershipPlans = [
   {
     id: "explorer",
     name: "Explorer",
-    price: "RXXXX / month",
+    price: "R299 / month",
     tagline: "For repeat leisure guests",
+    shortDescription: "A flexible membership designed for returning travellers, locals hosting guests, and light repeat users.",
     popular: false,
     benefits: [
       "Priority booking during peak season (subject to availability)",
-      "Preferred rates on selected private day tours",
-      "Complimentary bottled water and Wi‑Fi where available"
+      "5–8% preferred rates on selected private day tours",
+      "Complimentary bottled water and onboard Wi-Fi where available"
     ]
   },
   {
     id: "frequent",
     name: "Frequent Traveller",
-    price: "RXXXX / month",
+    price: "R899 / month",
     tagline: "Most Popular",
+    shortDescription: "Ideal for frequent visitors, families, and business travellers who value reliability and priority support.",
     popular: true,
     benefits: [
       "Guaranteed vehicle allocation for pre-booked dates",
-      "Enhanced discounts on transfers and full-day touring",
+      "10–15% discounted rates on transfers and full-day touring",
       "Complimentary airport fast-track coordination where available",
       "Dedicated point-of-contact for itinerary adjustments"
     ]
@@ -305,8 +452,9 @@ export const membershipPlans = [
   {
     id: "elite",
     name: "Elite Partner",
-    price: "RXXXX / month",
+    price: "R2,500 / month",
     tagline: "For corporate & hospitality partners",
+    shortDescription: "Designed for hotels, concierge desks, corporate travel managers, and VIP service providers.",
     popular: false,
     benefits: [
       "Contracted corporate or concierge rates",
