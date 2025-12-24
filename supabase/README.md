@@ -112,3 +112,5 @@ The app will automatically connect when you start it with the environment variab
 - Use **RLS policies** for all data access
 - Regularly **audit** user roles and permissions
 
+
+

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { tours, vehicles, drivers, reviews, membershipPlans } from "../data";
+import { siteConfig } from "../config";
 
 const formatStars = (rating) => {
   const fullStars = Math.round(rating);
@@ -555,19 +556,19 @@ function Home() {
                   <ul className="contact-list">
                     <li>
                       <strong>Email:</strong>{" "}
-                      <a href="mailto:info@unicabtravel.co.za" style={{ color: "var(--accent-gold)", textDecoration: "none" }}>
-                        info@unicabtravel.co.za
+                      <a href={`mailto:${siteConfig.email}`} style={{ color: "var(--accent-gold)", textDecoration: "none" }}>
+                        {siteConfig.email}
                       </a>
                     </li>
                     <li>
                       <strong>Phone:</strong>{" "}
                       <a
-                        href="https://wa.me/27822818105"
+                        href={siteConfig.whatsapp.link}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{ color: "var(--accent-gold)", textDecoration: "none" }}
                       >
-                        +27 82 281 8105
+                        {siteConfig.whatsapp.displayNumber}
                       </a>
                     </li>
                     <li>
@@ -589,19 +590,19 @@ function Home() {
           <p className="footer-meta">Premium private transfers &amp; tours in Cape Town and the Western Cape.</p>
           <div className="footer-contact" style={{ marginTop: "1rem", fontSize: "0.9rem", color: "var(--text-soft)" }}>
             <p style={{ margin: "0.25rem 0" }}>
-              <a href="mailto:info@unicabtravel.co.za" style={{ color: "var(--accent-gold)", textDecoration: "none", marginRight: "1rem" }}>
-                info@unicabtravel.co.za
+              <a href={`mailto:${siteConfig.email}`} style={{ color: "var(--accent-gold)", textDecoration: "none", marginRight: "1rem" }}>
+                {siteConfig.email}
               </a>
               <a
-                href="https://wa.me/27822818105"
+                href={siteConfig.whatsapp.link}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ color: "var(--accent-gold)", textDecoration: "none", marginRight: "1rem" }}
               >
-                +27 82 281 8105
+                {siteConfig.whatsapp.displayNumber}
               </a>
               <a
-                href="https://www.unicab.co.za/"
+                href={siteConfig.website}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ color: "var(--accent-gold)", textDecoration: "none" }}
@@ -615,7 +616,7 @@ function Home() {
 
       {/* WhatsApp Chat Button */}
       <a
-        href="https://wa.me/27822818105?text=Hello%2C%20I%27d%20like%20to%20inquire%20about%20your%20services"
+        href={siteConfig.whatsapp.linkWithMessage}
         className="whatsapp-button"
         target="_blank"
         rel="noopener noreferrer"

@@ -1,6 +1,7 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import BackToTop from "../components/BackToTop";
+import { siteConfig } from "../config";
 
 function TourConfirmation() {
   const location = useLocation();
@@ -118,11 +119,11 @@ function TourConfirmation() {
               <div style={{ marginBottom: "2rem" }}>
                 <p style={{ fontSize: "0.95rem", color: "var(--text-soft)" }}>
                   We look forward to providing you with an exceptional travel experience. If you have any questions, please contact us at{" "}
-                  <a href="mailto:info@unicabtravel.co.za" style={{ color: "var(--accent-gold)" }}>
-                    info@unicabtravel.co.za
+                  <a href={`mailto:${siteConfig.email}`} style={{ color: "var(--accent-gold)" }}>
+                    {siteConfig.email}
                   </a>{" "}
                   or{" "}
-                  <a href="https://wa.me/27822818105" style={{ color: "var(--accent-gold)" }}>
+                  <a href={siteConfig.whatsapp.link} style={{ color: "var(--accent-gold)" }}>
                     WhatsApp us
                   </a>.
                 </p>

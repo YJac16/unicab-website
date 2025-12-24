@@ -281,3 +281,5 @@ For issues or questions:
 3. Verify database schema matches `supabase/schema.sql`
 4. Test with localStorage fallback first
 
+
+

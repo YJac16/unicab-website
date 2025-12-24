@@ -181,7 +181,7 @@ function Tours() {
                 info@unicabtravel.co.za
               </a>
               <a
-                href="https://wa.me/27822818105"
+                href="https://wa.me/+27822818105"
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ color: "var(--accent-gold)", textDecoration: "none", marginRight: "1rem" }}
@@ -203,7 +203,7 @@ function Tours() {
 
       {/* WhatsApp Chat Button */}
       <a
-        href="https://wa.me/27822818105?text=Hello%2C%20I%27d%20like%20to%20inquire%20about%20your%20services"
+        href="https://wa.me/+27822818105?text=Hello%2C%20I%27d%20like%20to%20inquire%20about%20your%20services"
         className="whatsapp-button"
         target="_blank"
         rel="noopener noreferrer"

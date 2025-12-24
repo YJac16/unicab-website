@@ -264,3 +264,5 @@ export const calculateTourPrice = (tour, groupSize) => {
   return pricing['19-22'] || 0;
 };
 
+
+

@@ -19,3 +19,5 @@ export const isSupabaseConfigured = () => {
            supabaseUrl !== 'https://placeholder.supabase.co');
 };
 
+
+
