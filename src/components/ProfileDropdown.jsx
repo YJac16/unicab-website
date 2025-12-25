@@ -15,16 +15,35 @@ function ProfileDropdown() {
     const token = localStorage.getItem('auth_token');
     if (token) {
       try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        setUser({
-          name: payload.name || payload.email?.split('@')[0] || 'User',
-          email: payload.email,
-          role: payload.role
-        });
+        // Validate token format (should have 3 parts separated by dots)
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1]));
+          // Validate payload has required fields
+          if (payload && (payload.email || payload.name || payload.role)) {
+            setUser({
+              name: payload.name || payload.email?.split('@')[0] || 'User',
+              email: payload.email,
+              role: payload.role
+            });
+          } else {
+            // Invalid token payload, remove it
+            localStorage.removeItem('auth_token');
+            setUser(null);
+          }
+        } else {
+          // Invalid token format, remove it
+          localStorage.removeItem('auth_token');
+          setUser(null);
+        }
       } catch (error) {
         console.error('Error decoding token:', error);
         localStorage.removeItem('auth_token');
+        setUser(null);
       }
+    } else {
+      // No token, ensure user is null
+      setUser(null);
     }
 
     // Close dropdown when clicking outside
@@ -41,45 +60,8 @@ function ProfileDropdown() {
   }, []);
 
   // Don't render until mounted (prevents hydration issues)
+  // But show Sign In button immediately to avoid flicker
   if (!mounted) {
-    return (
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: '0.75rem',
-        minWidth: '80px',
-        height: '36px'
-      }}>
-        <div style={{ 
-          width: '80px', 
-          height: '36px', 
-          background: 'transparent',
-          border: '1px solid var(--border-soft)',
-          borderRadius: '999px'
-        }} />
-      </div>
-    );
-  }
-
-  const handleSignOut = () => {
-    localStorage.removeItem('auth_token');
-    setUser(null);
-    setIsOpen(false);
-    navigate('/');
-    window.location.reload(); // Refresh to update UI
-  };
-
-  const getDashboardPath = () => {
-    if (!user) return null;
-    const role = user.role?.toLowerCase();
-    if (role === 'admin') return '/admin/dashboard';
-    if (role === 'driver') return '/driver/dashboard';
-    if (role === 'member') return '/member/dashboard';
-    return null;
-  };
-
-  if (!user) {
-    // Not logged in - show Sign In button
     return (
       <div style={{ 
         display: 'flex', 
@@ -103,6 +85,63 @@ function ProfileDropdown() {
             opacity: 1,
             position: 'relative',
             zIndex: 100
+          }}
+        >
+          Sign In
+        </Link>
+      </div>
+    );
+  }
+
+  const handleSignOut = () => {
+    localStorage.removeItem('auth_token');
+    setUser(null);
+    setIsOpen(false);
+    navigate('/');
+    window.location.reload(); // Refresh to update UI
+  };
+
+  const getDashboardPath = () => {
+    if (!user) return null;
+    const role = user.role?.toLowerCase();
+    if (role === 'admin') return '/admin/dashboard';
+    if (role === 'driver') return '/driver/dashboard';
+    if (role === 'member') return '/member/dashboard';
+    return null;
+  };
+
+  if (!user) {
+    // Not logged in - show Sign In button
+    // Always render this, even if there are errors
+    return (
+      <div 
+        className="profile-dropdown-container"
+        style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '0.75rem',
+          position: 'relative',
+          zIndex: 100,
+          visibility: 'visible',
+          opacity: 1,
+          minWidth: 'fit-content'
+        }}
+      >
+        <Link
+          to="/login"
+          className="btn btn-outline"
+          style={{
+            padding: '0.5rem 1rem',
+            fontSize: '0.85rem',
+            textDecoration: 'none',
+            display: 'inline-block !important',
+            whiteSpace: 'nowrap',
+            visibility: 'visible !important',
+            opacity: '1 !important',
+            position: 'relative',
+            zIndex: 100,
+            minWidth: '80px',
+            textAlign: 'center'
           }}
         >
           Sign In
@@ -427,3 +466,4 @@ function ProfileDropdown() {
 }
 
 export default ProfileDropdown;
+

@@ -229,12 +229,23 @@ body {
 /* Ensure ProfileDropdown button/link is visible */
 .header-inner .btn-outline,
 .header-inner button[style*="border"],
-.header-inner a[href="/login"] {
+.header-inner a[href="/login"],
+.header-inner a[href*="/login"],
+.header-inner .profile-dropdown-container,
+.header-inner .profile-dropdown-container a {
   opacity: 1 !important;
   visibility: visible !important;
   display: inline-block !important;
   position: relative !important;
   z-index: 100 !important;
+}
+
+/* Specific rule for Sign In link */
+a[href="/login"].btn-outline {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: inline-block !important;
+  pointer-events: auto !important;
 }
 
 /* Profile Dropdown Styles */
