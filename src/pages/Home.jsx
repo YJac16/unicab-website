@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { tours, vehicles, drivers, reviews, membershipPlans } from "../data";
 import { siteConfig } from "../config";
+import ProfileDropdown from "../components/ProfileDropdown";
 
 const formatStars = (rating) => {
   const fullStars = Math.round(rating);
@@ -114,15 +115,21 @@ function Home() {
             <img src="/logo-white.png" alt="UNICAB Travel & Tours" className="logo-img" />
           </Link>
 
-          <button
-            className="nav-toggle"
-            aria-label="Toggle navigation"
-            aria-expanded={navOpen}
-            onClick={() => setNavOpen((o) => !o)}
-          >
-            <span className="nav-toggle-bar" />
-            <span className="nav-toggle-bar" />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginLeft: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <ProfileDropdown />
+            </div>
+            
+            <button
+              className="nav-toggle"
+              aria-label="Toggle navigation"
+              aria-expanded={navOpen}
+              onClick={() => setNavOpen((o) => !o)}
+            >
+              <span className="nav-toggle-bar" />
+              <span className="nav-toggle-bar" />
+            </button>
+          </div>
 
           <nav className={`main-nav ${navOpen ? "open" : ""}`} aria-label="Primary">
             <ul>

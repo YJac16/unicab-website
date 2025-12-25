@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { getBookings, getDriverAvailability, blockDriverDate, unblockDriverDate, updateBooking } from '../lib/api';
+import { getDriverBookings, getDriverUnavailability, blockDriverDate, unblockDriverDate } from '../lib/api';
+import ProfileDropdown from '../components/ProfileDropdown';
 import BackToTop from '../components/BackToTop';
 
 function DriverDashboard() {
-  const { user, driverProfile, signOut } = useAuth();
+  const { user, driverProfile } = useAuth();
   const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
   const [blockedDates, setBlockedDates] = useState([]);
@@ -15,27 +16,31 @@ function DriverDashboard() {
   const [showBlockForm, setShowBlockForm] = useState(false);
 
   useEffect(() => {
-    if (driverProfile) {
-      loadData();
-    }
-  }, [driverProfile]);
+    // Load data when component mounts
+    // Note: Driver must be authenticated via JWT token
+    loadData();
+  }, []);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [bookingsData, availabilityData] = await Promise.all([
-        getBookings({ driver_id: driverProfile.id }),
-        getDriverAvailability(driverProfile.id),
+      const [bookingsData, unavailabilityData] = await Promise.all([
+        getDriverBookings(),
+        getDriverUnavailability(),
       ]);
 
       if (bookingsData.data) {
         setBookings(bookingsData.data);
       }
-      if (availabilityData.data) {
-        setBlockedDates(availabilityData.data);
+      if (unavailabilityData.data) {
+        setBlockedDates(unavailabilityData.data);
       }
     } catch (error) {
       console.error('Error loading data:', error);
+      // If unauthorized, redirect to login
+      if (error?.error?.message?.includes('Authentication') || error?.error?.message?.includes('401')) {
+        navigate('/login');
+      }
     } finally {
       setLoading(false);
     }
@@ -45,35 +50,37 @@ function DriverDashboard() {
     e.preventDefault();
     if (!selectedDate) return;
 
-    const { error } = await blockDriverDate(driverProfile.id, selectedDate, blockReason);
+    const { error } = await blockDriverDate(selectedDate, blockReason);
     if (!error) {
       setSelectedDate('');
       setBlockReason('');
       setShowBlockForm(false);
       loadData();
+    } else {
+      alert(error.message || 'Failed to block date');
     }
   };
 
-  const handleUnblockDate = async (availabilityId) => {
-    const { error } = await unblockDriverDate(availabilityId);
+  const handleUnblockDate = async (date) => {
+    if (!confirm('Are you sure you want to unblock this date?')) {
+      return;
+    }
+
+    const { error } = await unblockDriverDate(date);
     if (!error) {
       loadData();
+    } else {
+      alert(error.message || 'Failed to unblock date');
     }
   };
 
-  const handleUpdateBookingStatus = async (bookingId, newStatus) => {
-    const { error } = await updateBooking(bookingId, { status: newStatus });
-    if (!error) {
-      loadData();
-    }
-  };
-
+  // Filter only CONFIRMED bookings (as per requirements)
   const upcomingBookings = bookings.filter(b => {
-    const bookingDate = new Date(b.date);
+    const bookingDate = new Date(b.date || b.booking_date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return bookingDate >= today && b.status !== 'cancelled';
-  }).sort((a, b) => new Date(a.date) - new Date(b.date));
+    return bookingDate >= today && b.status === 'confirmed';
+  }).sort((a, b) => new Date(a.date || a.booking_date) - new Date(b.date || b.booking_date));
 
   const pastBookings = bookings.filter(b => {
     const bookingDate = new Date(b.date);
@@ -97,15 +104,8 @@ function DriverDashboard() {
           <Link to="/" className="logo" aria-label="UNICAB Travel & Tours - Home">
             <img src="/logo-white.png" alt="UNICAB Travel & Tours" className="logo-img" />
           </Link>
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-            <span style={{ color: 'white' }}>{driverProfile?.name || user?.email}</span>
-            <button
-              onClick={() => signOut()}
-              className="btn btn-outline"
-              style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
-            >
-              Sign Out
-            </button>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+            <ProfileDropdown />
           </div>
         </div>
       </header>
@@ -275,7 +275,7 @@ function DriverDashboard() {
                             )}
                           </div>
                           <button
-                            onClick={() => handleUnblockDate(block.id)}
+                            onClick={() => handleUnblockDate(block.date)}
                             className="btn btn-outline"
                             style={{ padding: "0.25rem 0.75rem", fontSize: "0.85rem" }}
                           >
@@ -307,7 +307,7 @@ function DriverDashboard() {
                             {booking.tours?.name || 'Tour'}
                           </h3>
                           <p className="card-meta">
-                            {new Date(booking.date).toLocaleDateString("en-US", {
+                            {new Date(booking.date || booking.booking_date).toLocaleDateString("en-US", {
                               year: "numeric",
                               month: "long",
                               day: "numeric"
@@ -317,7 +317,7 @@ function DriverDashboard() {
                         <div className="card-body">
                           <p><strong>Group Size:</strong> {booking.group_size}</p>
                           <p><strong>Customer:</strong> {booking.customer_name}</p>
-                          <p><strong>Status:</strong> {booking.status}</p>
+                          <p><strong>Status:</strong> {booking.status || 'completed'}</p>
                         </div>
                       </div>
                     ))}

@@ -211,6 +211,64 @@ body {
   justify-content: space-between;
   height: var(--nav-height);
   gap: 1.5rem;
+  position: relative;
+}
+
+/* Ensure ProfileDropdown container is always visible */
+.header-inner > div:last-of-type {
+  display: flex !important;
+  align-items: center;
+  gap: 1rem;
+  z-index: 100;
+  position: relative;
+  min-width: fit-content;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Ensure ProfileDropdown button/link is visible */
+.header-inner .btn-outline,
+.header-inner button[style*="border"],
+.header-inner a[href="/login"] {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: inline-block !important;
+  position: relative !important;
+  z-index: 100 !important;
+}
+
+/* Profile Dropdown Styles */
+.profile-dropdown-container {
+  position: relative;
+  z-index: 100;
+}
+
+/* Ensure ProfileDropdown is always visible in header */
+.header-inner > div:last-child {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  z-index: 100;
+}
+
+@media (max-width: 768px) {
+  .header-inner {
+    flex-wrap: nowrap;
+  }
+  
+  .header-inner > div:last-child {
+    order: 2;
+    margin-left: auto;
+  }
+  
+  .main-nav {
+    order: 3;
+  }
+  
+  .profile-dropdown-container {
+    position: relative;
+    z-index: 100;
+  }
 }
 
 .logo {

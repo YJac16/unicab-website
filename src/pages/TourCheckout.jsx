@@ -128,6 +128,20 @@ function TourCheckout() {
     setSubmitting(true);
 
     try {
+      // Check if user is logged in as member
+      const token = localStorage.getItem('auth_token');
+      let userId = null;
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          if (payload.role === 'MEMBER') {
+            userId = payload.userId;
+          }
+        } catch (error) {
+          console.error('Error decoding token:', error);
+        }
+      }
+
       // Create booking via API
       const driverId = driver.id || driver.driver_id;
       const tourId = tour.id;
@@ -135,6 +149,7 @@ function TourCheckout() {
       const bookingData = {
         tour_id: tourId,
         driver_id: driverId,
+        user_id: userId, // Link to member account if logged in
         customer_name: `${formData.firstName} ${formData.lastName}`,
         customer_email: formData.email,
         customer_phone: formData.phone || null,
@@ -569,17 +584,42 @@ function TourCheckout() {
                     </div>
                   </div>
 
+                  <div style={{ 
+                    padding: "1.5rem", 
+                    background: "#fff3cd", 
+                    borderRadius: "8px",
+                    marginBottom: "1rem",
+                    border: "1px solid #ffc107"
+                  }}>
+                    <p style={{ 
+                      margin: 0, 
+                      color: "#856404", 
+                      fontSize: "0.95rem",
+                      textAlign: "center",
+                      fontWeight: "500"
+                    }}>
+                      ⚠️ Online payments coming soon. Please contact us to complete your booking.
+                    </p>
+                  </div>
+
                   <button
                     type="submit"
-                    disabled={submitting}
+                    disabled={true}
                     className="btn btn-primary"
-                    style={{ width: "100%", fontSize: "1.1rem", padding: "1rem" }}
+                    style={{ 
+                      width: "100%", 
+                      fontSize: "1.1rem", 
+                      padding: "1rem",
+                      opacity: 0.5,
+                      cursor: "not-allowed"
+                    }}
                   >
-                    {submitting ? "Processing Payment..." : `Complete Booking - R${totalPrice.toLocaleString()}`}
+                    Proceed to Payment (Disabled)
                   </button>
 
                   <p style={{ textAlign: "center", fontSize: "0.85rem", color: "var(--text-soft)", marginTop: "1rem" }}>
-                    🔒 Your payment information is secure and encrypted. A confirmation email will be sent to {formData.email || "your email address"}.
+                    Your booking will be created with status "PENDING" until payment is confirmed. 
+                    We'll contact you to complete the payment process.
                   </p>
                 </form>
               )}

@@ -1,20 +1,115 @@
 import { supabase, isSupabaseConfigured } from './supabase';
 
+// API Base URL - use backend Express server
+// In development, Vite proxy handles /api routes, so we use relative URLs
+// In production, use VITE_API_URL if set, otherwise use relative URLs
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+
+// Helper function to call backend API
+const apiCall = async (endpoint, options = {}) => {
+  try {
+    const url = API_BASE_URL ? `${API_BASE_URL}${endpoint}` : endpoint;
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+
+    // Check if response has content
+    const contentType = response.headers.get('content-type');
+    const hasJsonContent = contentType && contentType.includes('application/json');
+    
+    // Get response text first to check if it's empty
+    const text = await response.text();
+    
+    // If response is empty, handle gracefully
+    if (!text || text.trim() === '') {
+      if (!response.ok) {
+        return { 
+          data: null, 
+          error: { 
+            message: `Server returned ${response.status} ${response.statusText} with no content`,
+            status: response.status 
+          } 
+        };
+      }
+      return { data: null, error: { message: 'Empty response from server' } };
+    }
+
+    // Try to parse as JSON if content type suggests JSON or if we expect JSON
+    let result;
+    if (hasJsonContent || text.trim().startsWith('{') || text.trim().startsWith('[')) {
+      try {
+        result = JSON.parse(text);
+      } catch (parseError) {
+        console.error(`Failed to parse JSON response from ${endpoint}:`, parseError);
+        return { 
+          data: null, 
+          error: { 
+            message: 'Invalid JSON response from server',
+            details: text.substring(0, 100)
+          } 
+        };
+      }
+    } else {
+      // Not JSON - might be HTML error page or plain text
+      return { 
+        data: null, 
+        error: { 
+          message: response.ok 
+            ? 'Unexpected response format from server' 
+            : `Server error: ${response.status} ${response.statusText}`,
+          details: text.substring(0, 200)
+        } 
+      };
+    }
+    
+    if (!response.ok) {
+      return { data: null, error: result.error || result || { message: `Request failed with status ${response.status}` } };
+    }
+
+    return { data: result.data || result, error: null };
+  } catch (error) {
+    console.error(`API call failed for ${endpoint}:`, error);
+    
+    // Check if it's a network error
+    if (error.message.includes('fetch')) {
+      return { 
+        data: null, 
+        error: { 
+          message: 'Network error: Could not connect to server. Make sure the backend server is running.',
+          details: error.message
+        } 
+      };
+    }
+    
+    return { data: null, error: { message: error.message } };
+  }
+};
+
 // Tours API
 export const getTours = async () => {
-  if (!isSupabaseConfigured()) {
-    // Fallback to local data
-    const { tours } = await import('../data');
-    return { data: tours, error: null };
+  // Try backend API first
+  const backendResult = await apiCall('/api/tours');
+  if (backendResult.data && backendResult.data.length > 0) {
+    return backendResult;
   }
 
-  const { data, error } = await supabase
-    .from('tours')
-    .select('*')
-    .eq('active', true)
-    .order('name');
+  // Fallback to Supabase
+  if (isSupabaseConfigured()) {
+    const { data, error } = await supabase
+      .from('tours')
+      .select('*')
+      .eq('active', true)
+      .order('name');
+    if (data) return { data, error };
+  }
 
-  return { data, error };
+  // Final fallback to local data
+  const { tours } = await import('../data');
+  return { data: tours, error: null };
 };
 
 export const getTour = async (id) => {
@@ -33,20 +128,31 @@ export const getTour = async (id) => {
   return { data, error };
 };
 
-// Drivers API
-export const getAvailableDrivers = async (date, groupSize) => {
-  if (!isSupabaseConfigured()) {
-    // Fallback to local data
-    const { drivers } = await import('../data');
-    return { data: drivers, error: null };
+// Guides API (using backend Express routes)
+export const getAvailableGuides = async (date) => {
+  // Try backend API first
+  const backendResult = await apiCall(`/api/guides/available?date=${date}`);
+  if (backendResult.data) {
+    return backendResult;
   }
 
-  const { data, error } = await supabase.rpc('get_available_drivers', {
-    p_date: date,
-    p_group_size: groupSize,
-  });
+  // Fallback to Supabase (drivers)
+  if (isSupabaseConfigured()) {
+    const { data, error } = await supabase.rpc('get_available_drivers', {
+      p_date: date,
+      p_group_size: 1, // Default group size
+    });
+    if (data) return { data, error };
+  }
 
-  return { data, error };
+  // Final fallback to local data
+  const { drivers } = await import('../data');
+  return { data: drivers, error: null };
+};
+
+// Drivers API (kept for backward compatibility)
+export const getAvailableDrivers = async (date, groupSize) => {
+  return getAvailableGuides(date);
 };
 
 export const getDrivers = async () => {
@@ -69,8 +175,60 @@ export const getDrivers = async () => {
 
 // Bookings API
 export const createBooking = async (bookingData) => {
-  if (!isSupabaseConfigured()) {
-    // Fallback: store in localStorage
+  // Get auth token if member is logged in
+  const token = localStorage.getItem('auth_token');
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  // Transform bookingData to match backend API format
+  const backendPayload = {
+    tour_id: bookingData.tour_id || bookingData.tourId,
+    guide_id: bookingData.guide_id || bookingData.guideId || bookingData.driver_id || bookingData.driverId,
+    booking_date: bookingData.date || bookingData.booking_date,
+    group_size: bookingData.group_size || bookingData.pax,
+    customer_name: bookingData.customer_name || bookingData.customerName || `${bookingData.firstName || ''} ${bookingData.lastName || ''}`.trim(),
+    customer_email: bookingData.customer_email || bookingData.customerEmail || bookingData.email,
+    customer_phone: bookingData.customer_phone || bookingData.customerPhone || bookingData.phone,
+    special_requests: bookingData.special_requests || bookingData.specialRequests,
+    user_id: bookingData.user_id || null, // Will be set by backend if member is logged in
+  };
+
+  // Use apiCall with auth header if token exists
+  const url = API_BASE_URL ? `${API_BASE_URL}/api/bookings` : '/api/bookings';
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(backendPayload),
+    });
+
+    const result = await response.json();
+    
+    if (!response.ok) {
+      return { data: null, error: result };
+    }
+
+    return { data: result.data || result, error: null };
+  } catch (error) {
+    console.error(`API call failed for /api/bookings:`, error);
+    
+    // Fallback to Supabase if backend fails
+    if (isSupabaseConfigured()) {
+      const { data, error: supabaseError } = await supabase
+        .from('bookings')
+        .insert(bookingData)
+        .select()
+        .single();
+      if (data) return { data, error: null };
+      return { data: null, error: supabaseError };
+    }
+
+    // Final fallback: store in localStorage
     const bookings = JSON.parse(localStorage.getItem('unicab_bookings') || '[]');
     const newBooking = {
       id: Date.now().toString(),
@@ -82,14 +240,6 @@ export const createBooking = async (bookingData) => {
     localStorage.setItem('unicab_bookings', JSON.stringify(bookings));
     return { data: newBooking, error: null };
   }
-
-  const { data, error } = await supabase
-    .from('bookings')
-    .insert(bookingData)
-    .select()
-    .single();
-
-  return { data, error };
 };
 
 export const getBookings = async (filters = {}) => {
@@ -262,6 +412,128 @@ export const calculateTourPrice = (tour, groupSize) => {
   if (groupSize >= 19 && groupSize <= 22) return pricing['19-22'] || 0;
   
   return pricing['19-22'] || 0;
+};
+
+// Payments API (stub for Stripe integration)
+export const createPaymentSession = async (bookingId, amount, currency = 'zar') => {
+  return apiCall('/api/payments/create-session', {
+    method: 'POST',
+    body: JSON.stringify({ booking_id: bookingId, amount, currency }),
+  });
+};
+
+// Authentication API
+export const login = async (email, password) => {
+  return apiCall('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+};
+
+// Driver API (requires authentication token)
+const driverApiCall = async (endpoint, options = {}) => {
+  const token = localStorage.getItem('auth_token');
+  return apiCall(endpoint, {
+    ...options,
+    headers: {
+      ...options.headers,
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+};
+
+export const getDriverBookings = async () => {
+  return driverApiCall('/api/driver/bookings');
+};
+
+export const getDriverUnavailability = async () => {
+  return driverApiCall('/api/driver/unavailability');
+};
+
+// Note: blockDriverDate and unblockDriverDate are already defined above (lines 257, 275)
+// These duplicate definitions are removed to fix the build error
+
+// Admin API (requires authentication token)
+const adminApiCall = async (endpoint, options = {}) => {
+  const token = localStorage.getItem('auth_token');
+  return apiCall(endpoint, {
+    ...options,
+    headers: {
+      ...options.headers,
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+};
+
+export const getAdminBookings = async (filters = {}) => {
+  const queryParams = new URLSearchParams(filters).toString();
+  return adminApiCall(`/api/admin/bookings${queryParams ? `?${queryParams}` : ''}`);
+};
+
+export const updateBookingStatus = async (bookingId, status) => {
+  return adminApiCall(`/api/admin/bookings/${bookingId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+};
+
+export const getAdminDrivers = async () => {
+  return adminApiCall('/api/admin/drivers');
+};
+
+export const createDriver = async (driverData) => {
+  return adminApiCall('/api/admin/drivers', {
+    method: 'POST',
+    body: JSON.stringify(driverData),
+  });
+};
+
+export const updateDriverStatus = async (driverId, active) => {
+  return adminApiCall(`/api/admin/drivers/${driverId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ active }),
+  });
+};
+
+export const getDriverUnavailabilityAdmin = async (driverId) => {
+  return adminApiCall(`/api/admin/drivers/${driverId}/unavailability`);
+};
+
+export const blockDriverDateAdmin = async (driverId, date, reason = '') => {
+  return adminApiCall(`/api/admin/drivers/${driverId}/unavailability`, {
+    method: 'POST',
+    body: JSON.stringify({ date, reason }),
+  });
+};
+
+export const unblockDriverDateAdmin = async (driverId, date) => {
+  return adminApiCall(`/api/admin/drivers/${driverId}/unavailability/${date}`, {
+    method: 'DELETE',
+  });
+};
+
+// Member API (requires authentication token)
+const memberApiCall = async (endpoint, options = {}) => {
+  const token = localStorage.getItem('auth_token');
+  return apiCall(endpoint, {
+    ...options,
+    headers: {
+      ...options.headers,
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+};
+
+export const getMemberBookings = async () => {
+  return memberApiCall('/api/member/bookings');
+};
+
+// Registration API (public)
+export const register = async (userData) => {
+  return apiCall('/api/auth/register', {
+    method: 'POST',
+    body: JSON.stringify(userData),
+  });
 };
 
 

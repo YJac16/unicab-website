@@ -1,21 +1,311 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { getBookings, getTours, getDrivers, updateBooking } from '../lib/api';
+import { 
+  getAdminBookings, 
+  getAdminDrivers, 
+  createDriver,
+  updateBookingStatus,
+  updateDriverStatus,
+  getDriverUnavailabilityAdmin,
+  blockDriverDateAdmin,
+  unblockDriverDateAdmin
+} from '../lib/api';
+import ProfileDropdown from '../components/ProfileDropdown';
 import BackToTop from '../components/BackToTop';
 
+// Add Driver Form Component
+function AddDriverForm({ onDriverAdded }) {
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    try {
+      const { error: createError } = await createDriver(formData);
+      
+      if (createError) {
+        setError(createError.message || createError.error || 'Failed to create driver');
+      } else {
+        setSuccess('Driver created successfully!');
+        setFormData({ name: '', email: '', password: '' });
+        setShowForm(false);
+        onDriverAdded();
+      }
+    } catch (err) {
+      setError('An error occurred. Please try again.');
+      console.error('Error creating driver:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ 
+      background: "white", 
+      padding: "2rem", 
+      borderRadius: "12px",
+      border: "1px solid var(--border-soft)",
+      marginBottom: "2rem"
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showForm ? "1.5rem" : 0 }}>
+        <h2 style={{ margin: 0 }}>Drivers</h2>
+        <button
+          onClick={() => {
+            setShowForm(!showForm);
+            setError('');
+            setSuccess('');
+          }}
+          className="btn btn-primary"
+        >
+          {showForm ? 'Cancel' : '+ Add Driver'}
+        </button>
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleSubmit} style={{ marginTop: "1.5rem" }}>
+          {error && (
+            <div style={{
+              padding: "1rem",
+              background: "#fee",
+              border: "1px solid #fcc",
+              borderRadius: "8px",
+              marginBottom: "1rem",
+              color: "#c33"
+            }}>
+              {error}
+            </div>
+          )}
+
+          {success && (
+            <div style={{
+              padding: "1rem",
+              background: "#dfd",
+              border: "1px solid #cfc",
+              borderRadius: "8px",
+              marginBottom: "1rem",
+              color: "#3c3"
+            }}>
+              {success}
+            </div>
+          )}
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "1rem", marginBottom: "1rem" }}>
+            <div>
+              <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
+                Name *
+              </label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  border: "1px solid var(--border-soft)",
+                  borderRadius: "8px"
+                }}
+                placeholder="Driver name"
+              />
+            </div>
+
+            <div>
+              <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
+                Email *
+              </label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                required
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  border: "1px solid var(--border-soft)",
+                  borderRadius: "8px"
+                }}
+                placeholder="driver@example.com"
+              />
+            </div>
+
+            <div>
+              <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
+                Password *
+              </label>
+              <input
+                type="password"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                required
+                minLength={6}
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  border: "1px solid var(--border-soft)",
+                  borderRadius: "8px"
+                }}
+                placeholder="Minimum 6 characters"
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={loading}
+          >
+            {loading ? 'Creating...' : 'Create Driver'}
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+// Driver Availability Manager Component
+function DriverAvailabilityManager({ driver, unavailability, onBlockDate, onUnblockDate, onRefresh }) {
+  const [blockDate, setBlockDate] = useState('');
+  const [blockReason, setBlockReason] = useState('');
+  const [showBlockForm, setShowBlockForm] = useState(false);
+
+  const handleBlock = async (e) => {
+    e.preventDefault();
+    if (!blockDate) return;
+    await onBlockDate(driver.id, blockDate, blockReason);
+    setBlockDate('');
+    setBlockReason('');
+    setShowBlockForm(false);
+    onRefresh();
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <h3 style={{ margin: 0 }}>Blocked Dates</h3>
+        <button
+          onClick={() => setShowBlockForm(!showBlockForm)}
+          className="btn btn-outline"
+        >
+          {showBlockForm ? 'Cancel' : 'Block Date'}
+        </button>
+      </div>
+
+      {showBlockForm && (
+        <form onSubmit={handleBlock} style={{ marginBottom: "1.5rem", padding: "1rem", background: "var(--bg-soft)", borderRadius: "8px" }}>
+          <div style={{ marginBottom: "1rem" }}>
+            <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
+              Date
+            </label>
+            <input
+              type="date"
+              value={blockDate}
+              onChange={(e) => setBlockDate(e.target.value)}
+              min={new Date().toISOString().split("T")[0]}
+              required
+              style={{
+                width: "100%",
+                padding: "0.75rem",
+                border: "1px solid var(--border-soft)",
+                borderRadius: "8px"
+              }}
+            />
+          </div>
+          <div style={{ marginBottom: "1rem" }}>
+            <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
+              Reason (optional)
+            </label>
+            <input
+              type="text"
+              value={blockReason}
+              onChange={(e) => setBlockReason(e.target.value)}
+              placeholder="e.g., Vehicle maintenance, Vacation"
+              style={{
+                width: "100%",
+                padding: "0.75rem",
+                border: "1px solid var(--border-soft)",
+                borderRadius: "8px"
+              }}
+            />
+          </div>
+          <button type="submit" className="btn btn-primary">
+            Block Date
+          </button>
+        </form>
+      )}
+
+      {unavailability.length > 0 ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "1rem" }}>
+          {unavailability.map((block) => (
+            <div key={block.id} style={{
+              padding: "1rem",
+              background: "var(--bg-soft)",
+              borderRadius: "8px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center"
+            }}>
+              <div>
+                <p style={{ margin: 0, fontWeight: "600" }}>
+                  {new Date(block.date).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric"
+                  })}
+                </p>
+                {block.reason && (
+                  <p style={{ margin: "0.25rem 0 0", fontSize: "0.85rem", color: "var(--text-soft)" }}>
+                    {block.reason}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  if (confirm('Unblock this date?')) {
+                    onUnblockDate(driver.id, block.date);
+                    onRefresh();
+                  }
+                }}
+                className="btn btn-outline"
+                style={{ padding: "0.25rem 0.75rem", fontSize: "0.85rem" }}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p style={{ color: "var(--text-soft)" }}>No blocked dates</p>
+      )}
+    </div>
+  );
+}
+
 function AdminDashboard() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
-  const [tours, setTours] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('bookings');
+  const [selectedDriver, setSelectedDriver] = useState(null);
+  const [driverUnavailability, setDriverUnavailability] = useState([]);
   const [filters, setFilters] = useState({
     status: '',
     date_from: '',
     date_to: '',
+    driver_id: '',
   });
 
   useEffect(() => {
@@ -25,26 +315,75 @@ function AdminDashboard() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [bookingsData, toursData, driversData] = await Promise.all([
-        getBookings(filters),
-        getTours(),
-        getDrivers(),
+      const [bookingsData, driversData] = await Promise.all([
+        getAdminBookings(filters),
+        getAdminDrivers(),
       ]);
 
       if (bookingsData.data) setBookings(bookingsData.data);
-      if (toursData.data) setTours(toursData.data);
       if (driversData.data) setDrivers(driversData.data);
     } catch (error) {
       console.error('Error loading data:', error);
+      // If unauthorized, redirect to login
+      if (error?.error?.message?.includes('Authentication') || error?.error?.message?.includes('401')) {
+        navigate('/login');
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  const loadDriverUnavailability = async (driverId) => {
+    try {
+      const { data } = await getDriverUnavailabilityAdmin(driverId);
+      if (data) {
+        setDriverUnavailability(data);
+      }
+    } catch (error) {
+      console.error('Error loading driver unavailability:', error);
+    }
+  };
+
   const handleUpdateBookingStatus = async (bookingId, newStatus) => {
-    const { error } = await updateBooking(bookingId, { status: newStatus });
+    const { error } = await updateBookingStatus(bookingId, newStatus);
     if (!error) {
       loadData();
+    } else {
+      alert(error.message || 'Failed to update booking status');
+    }
+  };
+
+  const handleBlockDriverDate = async (driverId, date, reason = '') => {
+    const { error } = await blockDriverDateAdmin(driverId, date, reason);
+    if (!error) {
+      if (selectedDriver?.id === driverId) {
+        loadDriverUnavailability(driverId);
+      }
+      loadData();
+    } else {
+      alert(error.message || 'Failed to block date');
+    }
+  };
+
+  const handleUnblockDriverDate = async (driverId, date) => {
+    const { error } = await unblockDriverDateAdmin(driverId, date);
+    if (!error) {
+      if (selectedDriver?.id === driverId) {
+        loadDriverUnavailability(driverId);
+      }
+      loadData();
+    } else {
+      alert(error.message || 'Failed to unblock date');
+    }
+  };
+
+  const handleToggleDriverStatus = async (driverId, currentStatus) => {
+    const newStatus = !currentStatus;
+    const { error } = await updateDriverStatus(driverId, newStatus);
+    if (!error) {
+      loadData();
+    } else {
+      alert(error.message || 'Failed to update driver status');
     }
   };
 
@@ -70,15 +409,8 @@ function AdminDashboard() {
           <Link to="/" className="logo" aria-label="UNICAB Travel & Tours - Home">
             <img src="/logo-white.png" alt="UNICAB Travel & Tours" className="logo-img" />
           </Link>
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-            <span style={{ color: 'white' }}>Admin: {user?.email}</span>
-            <button
-              onClick={() => signOut()}
-              className="btn btn-outline"
-              style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
-            >
-              Sign Out
-            </button>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+            <ProfileDropdown />
           </div>
         </div>
       </header>
@@ -162,18 +494,6 @@ function AdminDashboard() {
                   Bookings
                 </button>
                 <button
-                  onClick={() => setActiveTab('tours')}
-                  className="btn"
-                  style={{
-                    border: "none",
-                    borderRadius: "0",
-                    borderBottom: activeTab === 'tours' ? "2px solid var(--accent-gold)" : "2px solid transparent",
-                    marginBottom: "-2px"
-                  }}
-                >
-                  Tours
-                </button>
-                <button
                   onClick={() => setActiveTab('drivers')}
                   className="btn"
                   style={{
@@ -243,6 +563,24 @@ function AdminDashboard() {
                           borderRadius: "8px"
                         }}
                       />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.85rem" }}>Driver</label>
+                      <select
+                        value={filters.driver_id}
+                        onChange={(e) => setFilters({ ...filters, driver_id: e.target.value })}
+                        style={{
+                          width: "100%",
+                          padding: "0.5rem",
+                          border: "1px solid var(--border-soft)",
+                          borderRadius: "8px"
+                        }}
+                      >
+                        <option value="">All Drivers</option>
+                        {drivers.map(driver => (
+                          <option key={driver.id} value={driver.id}>{driver.name}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 </div>
@@ -328,54 +666,96 @@ function AdminDashboard() {
                 </div>
               )}
 
-              {/* Tours Tab */}
-              {activeTab === 'tours' && (
-                <div style={{ 
-                  background: "white", 
-                  padding: "2rem", 
-                  borderRadius: "12px",
-                  border: "1px solid var(--border-soft)"
-                }}>
-                  <h2 style={{ marginTop: 0, marginBottom: "1.5rem" }}>Tours</h2>
-                  <p style={{ color: "var(--text-soft)", marginBottom: "1rem" }}>
-                    Tour management coming soon. For now, manage tours directly in Supabase.
-                  </p>
-                  <div className="cards-grid">
-                    {tours.map((tour) => (
-                      <div key={tour.id} className="card soft">
-                        <h3 className="card-title">{tour.name}</h3>
-                        <p className="card-meta">{tour.duration}</p>
-                        <p className="card-meta">Active: {tour.active ? 'Yes' : 'No'}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* Drivers Tab */}
               {activeTab === 'drivers' && (
-                <div style={{ 
-                  background: "white", 
-                  padding: "2rem", 
-                  borderRadius: "12px",
-                  border: "1px solid var(--border-soft)"
-                }}>
-                  <h2 style={{ marginTop: 0, marginBottom: "1.5rem" }}>Drivers</h2>
-                  <p style={{ color: "var(--text-soft)", marginBottom: "1rem" }}>
-                    Driver management coming soon. For now, manage drivers directly in Supabase.
-                  </p>
-                  <div className="cards-grid">
-                    {drivers.map((driver) => (
-                      <div key={driver.id} className="card soft">
-                        <h3 className="card-title">{driver.name}</h3>
-                        <p className="card-meta">{driver.experience}</p>
-                        <p className="card-meta">Active: {driver.active ? 'Yes' : 'No'}</p>
-                        {driver.vehicles && (
-                          <p className="card-meta">Vehicle: {driver.vehicles.type} ({driver.vehicles.capacity} pax)</p>
-                        )}
+                <div>
+                  {/* Add Driver Form */}
+                  <AddDriverForm onDriverAdded={loadData} />
+                  
+                  <div style={{ 
+                    background: "white", 
+                    padding: "2rem", 
+                    borderRadius: "12px",
+                    border: "1px solid var(--border-soft)",
+                    marginBottom: "2rem"
+                  }}>
+                    <h2 style={{ marginTop: 0, marginBottom: "1.5rem" }}>All Drivers</h2>
+                    {drivers.length > 0 ? (
+                      <div className="cards-grid">
+                        {drivers.map((driver) => (
+                          <div key={driver.id} className="card soft">
+                            <div className="card-header">
+                              <h3 className="card-title">{driver.name}</h3>
+                              <p className="card-meta">{driver.email}</p>
+                            </div>
+                            <div className="card-body">
+                              <p><strong>Status:</strong> <span style={{
+                                padding: "0.25rem 0.5rem",
+                                borderRadius: "4px",
+                                background: driver.active ? '#d4edda' : '#f8d7da',
+                                color: driver.active ? '#155724' : '#721c24'
+                              }}>{driver.active ? 'Active' : 'Inactive'}</span></p>
+                              {driver.vehicle_type && (
+                                <p><strong>Vehicle:</strong> {driver.vehicle_type} ({driver.vehicle_capacity} pax)</p>
+                              )}
+                              {driver.experience && (
+                                <p><strong>Experience:</strong> {driver.experience}</p>
+                              )}
+                            </div>
+                            <div className="card-footer" style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                              <button
+                                onClick={() => handleToggleDriverStatus(driver.id, driver.active)}
+                                className={`btn ${driver.active ? 'btn-outline' : 'btn-primary'}`}
+                                style={{ fontSize: "0.85rem" }}
+                              >
+                                {driver.active ? 'Deactivate' : 'Activate'}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedDriver(driver);
+                                  loadDriverUnavailability(driver.id);
+                                }}
+                                className="btn btn-outline"
+                                style={{ fontSize: "0.85rem" }}
+                              >
+                                View Availability
+                              </button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    ) : (
+                      <p style={{ color: "var(--text-soft)" }}>No drivers found</p>
+                    )}
                   </div>
+
+                  {/* Driver Availability Viewer */}
+                  {selectedDriver && (
+                    <div style={{ 
+                      background: "white", 
+                      padding: "2rem", 
+                      borderRadius: "12px",
+                      border: "1px solid var(--border-soft)"
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+                        <h2 style={{ margin: 0 }}>Availability: {selectedDriver.name}</h2>
+                        <button
+                          onClick={() => setSelectedDriver(null)}
+                          className="btn btn-outline"
+                        >
+                          Close
+                        </button>
+                      </div>
+
+                      <DriverAvailabilityManager
+                        driver={selectedDriver}
+                        unavailability={driverUnavailability}
+                        onBlockDate={handleBlockDriverDate}
+                        onUnblockDate={handleUnblockDriverDate}
+                        onRefresh={() => loadDriverUnavailability(selectedDriver.id)}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>

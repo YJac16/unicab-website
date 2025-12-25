@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { tours } from "../data";
 import { Link } from "react-router-dom";
 import BackToTop from "../components/BackToTop";
+import ProfileDropdown from "../components/ProfileDropdown";
 
 const formatStars = (rating) => {
   const fullStars = Math.round(rating);
@@ -25,15 +26,21 @@ function Tours() {
             <img src="/logo-white.png" alt="UNICAB Travel & Tours" className="logo-img" />
           </Link>
 
-          <button
-            className="nav-toggle"
-            aria-label="Toggle navigation"
-            aria-expanded={navOpen}
-            onClick={() => setNavOpen((o) => !o)}
-          >
-            <span className="nav-toggle-bar" />
-            <span className="nav-toggle-bar" />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginLeft: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <ProfileDropdown />
+            </div>
+            
+            <button
+              className="nav-toggle"
+              aria-label="Toggle navigation"
+              aria-expanded={navOpen}
+              onClick={() => setNavOpen((o) => !o)}
+            >
+              <span className="nav-toggle-bar" />
+              <span className="nav-toggle-bar" />
+            </button>
+          </div>
 
           <nav className={`main-nav ${navOpen ? "open" : ""}`} aria-label="Primary">
             <ul>

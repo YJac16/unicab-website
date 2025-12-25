@@ -1,3 +1,6 @@
+// Load environment variables from .env file
+require('dotenv').config();
+
 const express = require("express");
 const path = require("path");
 const bodyParser = require("body-parser");
@@ -6,16 +9,32 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || "development";
 
+// Check database connection status
+let db;
+try {
+  db = require('./lib/db');
+  if (db.isConfigured && db.isConfigured()) {
+    console.log(`✅ Database: ${db.dbType === 'supabase' ? 'Using Supabase (service role)' : db.dbType === 'postgres' ? 'Using PostgreSQL (direct connection)' : 'Not configured'}`);
+  } else {
+    console.warn('⚠️  Database: Not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env file');
+  }
+} catch (error) {
+  console.warn('⚠️  Database module not available:', error.message);
+  db = null;
+}
+
 const distPath = path.join(__dirname, "dist");
 const serveDist = express.static(distPath, {
   maxAge: NODE_ENV === "production" ? "1y" : "0",
   etag: true
 });
 
-// CORS for production (adjust allowed origins as needed)
-if (NODE_ENV === "production") {
-  app.use((req, res, next) => {
-    const origin = req.headers.origin;
+// CORS configuration
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  
+  if (NODE_ENV === "production") {
+    // Production: Only allow specific domains
     const allowedOrigins = [
       "https://unicabtraveltours.com",
       "https://www.unicabtraveltours.com"
@@ -23,14 +42,144 @@ if (NODE_ENV === "production") {
     if (allowedOrigins.includes(origin)) {
       res.setHeader("Access-Control-Allow-Origin", origin);
     }
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-    if (req.method === "OPTIONS") return res.sendStatus(200);
-    next();
+  } else {
+    // Development: Allow localhost and common dev ports
+    const devOrigins = [
+      "http://localhost:5173",
+      "http://localhost:3000",
+      "http://localhost:5174",
+      "http://127.0.0.1:5173",
+      "http://127.0.0.1:3000"
+    ];
+    if (origin && (devOrigins.includes(origin) || origin.includes('localhost') || origin.includes('127.0.0.1'))) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+    }
+  }
+  
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  
+  if (req.method === "OPTIONS") return res.sendStatus(200);
+  next();
+});
+
+app.use(bodyParser.json({ limit: "1mb" }));
+
+// Global error handler for JSON parsing errors
+app.use((error, req, res, next) => {
+  if (error instanceof SyntaxError && error.status === 400 && 'body' in error) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid JSON',
+      message: 'Request body contains invalid JSON'
+    });
+  }
+  next(error);
+});
+
+// API Routes - with error handling
+let authRouter, toursRouter, guidesRouter, bookingsRouter, paymentsRouter;
+let driverRouter, adminRouter, memberRouter;
+
+try {
+  authRouter = require('./api/auth');
+} catch (error) {
+  console.error('Failed to load auth router:', error);
+  // Create a fallback router that returns errors
+  authRouter = express.Router();
+  authRouter.use((req, res) => {
+    res.status(500).json({
+      success: false,
+      error: 'Auth module failed to load',
+      message: error.message
+    });
   });
 }
 
-app.use(bodyParser.json({ limit: "1mb" }));
+// Load API routers with individual error handling
+const loadRouter = (path, name) => {
+  try {
+    return require(path);
+  } catch (error) {
+    console.error(`⚠️  Failed to load ${name} router:`, error.message);
+    // Return a fallback router that returns helpful errors
+    const router = express.Router();
+    router.use((req, res) => {
+      res.status(500).json({
+        success: false,
+        error: `${name} module failed to load`,
+        message: error.message,
+        path: req.path
+      });
+    });
+    return router;
+  }
+};
+
+toursRouter = loadRouter('./api/tours', 'Tours');
+guidesRouter = loadRouter('./api/guides', 'Guides');
+bookingsRouter = loadRouter('./api/bookings', 'Bookings');
+paymentsRouter = loadRouter('./api/payments', 'Payments');
+driverRouter = loadRouter('./api/driver', 'Driver');
+adminRouter = loadRouter('./api/admin', 'Admin');
+memberRouter = loadRouter('./api/member', 'Member');
+
+// API info endpoint (helpful for testing)
+app.get('/api', (req, res) => {
+  const dbStatus = db && db.isConfigured && db.isConfigured() ? {
+    type: db.dbType,
+    status: 'connected'
+  } : {
+    status: 'not configured'
+  };
+
+  res.json({
+    message: 'UNICAB Travel & Tours API',
+    version: '1.0.0',
+    status: 'running',
+    endpoints: {
+      auth: {
+        login: 'POST /api/auth/login',
+        register: 'POST /api/auth/register'
+      },
+      tours: 'GET /api/tours',
+      guides: 'GET /api/guides/available?date=YYYY-MM-DD',
+      bookings: {
+        list: 'GET /api/bookings',
+        create: 'POST /api/bookings'
+      },
+      payments: {
+        createSession: 'POST /api/payments/create-session',
+        webhook: 'POST /api/payments/webhook'
+      },
+      admin: {
+        bookings: 'GET /api/admin/bookings',
+        drivers: 'GET /api/admin/drivers'
+      },
+      driver: {
+        bookings: 'GET /api/driver/bookings',
+        unavailability: 'GET /api/driver/unavailability'
+      },
+      member: {
+        bookings: 'GET /api/member/bookings'
+      }
+    },
+    database: dbStatus
+  });
+});
+
+// Public routes
+app.use('/api/auth', authRouter);
+app.use('/api/tours', toursRouter);
+app.use('/api/guides', guidesRouter);
+app.use('/api/bookings', bookingsRouter);
+app.use('/api/payments', paymentsRouter);
+
+// Protected routes (require authentication)
+app.use('/api/driver', driverRouter);
+app.use('/api/admin', adminRouter);
+app.use('/api/member', memberRouter);
 
 // Contact API endpoint
 app.post("/api/contact", (req, res) => {
@@ -106,10 +255,28 @@ app.use((req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`UNICAB Travel & Tours site running on port ${PORT}`);
-  if (NODE_ENV === "production") {
-    console.log(`Production mode - serving from ${distPath}`);
+// Global error handler for unhandled errors
+app.use((error, req, res, next) => {
+  console.error('Unhandled error:', error);
+  if (!res.headersSent) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: error.message || 'An unexpected error occurred',
+      details: NODE_ENV === "development" ? error.stack : undefined
+    });
   }
+});
+
+app.listen(PORT, () => {
+  console.log(`\n🚀 UNICAB Travel & Tours server running on port ${PORT}`);
+  console.log(`📦 Environment: ${NODE_ENV}`);
+  if (NODE_ENV === "production") {
+    console.log(`📁 Serving static files from: ${distPath}`);
+  } else {
+    console.log(`💻 Development mode - API available at http://localhost:${PORT}/api`);
+    console.log(`📝 Frontend should run on separate port (typically 5173)`);
+  }
+  console.log(`\n✅ Server ready!\n`);
 });
 

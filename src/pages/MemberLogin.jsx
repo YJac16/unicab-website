@@ -4,7 +4,7 @@ import { login } from '../lib/api';
 import BackToTop from '../components/BackToTop';
 import PasswordInput from '../components/PasswordInput';
 
-function Login() {
+function MemberLogin() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -75,9 +75,9 @@ function Login() {
                 border: "1px solid var(--border-soft)",
                 boxShadow: "var(--shadow-soft)"
               }}>
-                <h1 style={{ marginTop: 0, marginBottom: "1rem" }}>Sign In</h1>
+                <h1 style={{ marginTop: 0, marginBottom: "1rem" }}>Member Login</h1>
                 <p style={{ color: "var(--text-soft)", marginBottom: "2rem" }}>
-                  Sign in to access your account. Works for Admin, Driver, and Member accounts.
+                  Sign in to view your bookings and manage your account
                 </p>
 
                 {error && (
@@ -162,11 +162,10 @@ function Login() {
                     className="btn btn-outline"
                     style={{ 
                       textDecoration: "none",
-                      display: "inline-block",
-                      marginBottom: "1rem"
+                      display: "inline-block"
                     }}
                   >
-                    Create Member Account
+                    Create Account
                   </Link>
                 </div>
 
@@ -186,7 +185,4 @@ function Login() {
   );
 }
 
-export default Login;
-
-
-
+export default MemberLogin;
