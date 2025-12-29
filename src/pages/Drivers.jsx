@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { drivers } from "../data";
+import { drivers as localDrivers } from "../data";
+import { getDrivers, getDriverReviews, getDriverReviewStats } from "../lib/api";
 import BackToTop from "../components/BackToTop";
-import ReviewForm from "../components/ReviewForm";
+import DriverReviewForm from "../components/DriverReviewForm";
 
 const formatStars = (rating) => {
   const fullStars = Math.round(rating);
@@ -11,41 +12,81 @@ const formatStars = (rating) => {
 
 function Drivers() {
   const [navOpen, setNavOpen] = useState(false);
+  const [drivers, setDrivers] = useState(localDrivers);
   const [driverReviews, setDriverReviews] = useState({});
   const [driverRatings, setDriverRatings] = useState({});
   const [expandedDriver, setExpandedDriver] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Load reviews from localStorage
+  // Load drivers and reviews from database
   useEffect(() => {
-    const allReviews = JSON.parse(localStorage.getItem("unicab_reviews") || "[]");
-    const driverReviewsMap = {};
-    const driverRatingsMap = {};
-
-    drivers.forEach((driver) => {
-      const reviews = allReviews.filter(r => r.type === "driver" && r.targetId === driver.name);
-      driverReviewsMap[driver.name] = reviews;
-      
-      // Calculate average rating
-      if (reviews.length > 0) {
-        const avgRating = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
-        driverRatingsMap[driver.name] = avgRating;
-      } else {
-        driverRatingsMap[driver.name] = driver.rating || null;
+    const loadDriversAndReviews = async () => {
+      setLoading(true);
+      try {
+        // Try to get drivers from database
+        const { data: dbDrivers, error } = await getDrivers();
+        if (!error && dbDrivers && dbDrivers.length > 0) {
+          setDrivers(dbDrivers);
+          
+          // Load reviews for each driver
+          const reviewsMap = {};
+          const ratingsMap = {};
+          
+          for (const driver of dbDrivers) {
+            if (driver.id) {
+              const { data: reviews } = await getDriverReviews(driver.id);
+              const { data: stats } = await getDriverReviewStats(driver.id);
+              
+              if (reviews) {
+                reviewsMap[driver.id] = reviews;
+              }
+              if (stats) {
+                ratingsMap[driver.id] = stats.average > 0 ? stats.average : (driver.rating || null);
+              } else {
+                ratingsMap[driver.id] = driver.rating || null;
+              }
+            }
+          }
+          
+          setDriverReviews(reviewsMap);
+          setDriverRatings(ratingsMap);
+        } else {
+          // Fallback to local data
+          setDrivers(localDrivers);
+          const reviewsMap = {};
+          const ratingsMap = {};
+          localDrivers.forEach((driver) => {
+            reviewsMap[driver.name] = [];
+            ratingsMap[driver.name] = driver.rating || null;
+          });
+          setDriverReviews(reviewsMap);
+          setDriverRatings(ratingsMap);
+        }
+      } catch (err) {
+        console.error('Error loading drivers:', err);
+        // Fallback to local data
+        setDrivers(localDrivers);
+      } finally {
+        setLoading(false);
       }
-    });
+    };
 
-    setDriverReviews(driverReviewsMap);
-    setDriverRatings(driverRatingsMap);
+    loadDriversAndReviews();
   }, []);
 
-  const handleReviewSubmit = (driverName, newReview) => {
-    const currentReviews = driverReviews[driverName] || [];
-    const updatedReviews = [...currentReviews, newReview];
-    setDriverReviews({ ...driverReviews, [driverName]: updatedReviews });
-    
-    // Recalculate average rating
-    const avgRating = updatedReviews.reduce((sum, r) => sum + r.rating, 0) / updatedReviews.length;
-    setDriverRatings({ ...driverRatings, [driverName]: avgRating });
+  const handleReviewSubmit = async (driverId) => {
+    // Reload reviews after submission
+    if (driverId) {
+      const { data: reviews } = await getDriverReviews(driverId);
+      const { data: stats } = await getDriverReviewStats(driverId);
+      
+      if (reviews) {
+        setDriverReviews({ ...driverReviews, [driverId]: reviews });
+      }
+      if (stats) {
+        setDriverRatings({ ...driverRatings, [driverId]: stats.average > 0 ? stats.average : null });
+      }
+    }
   };
   
   return (
@@ -149,15 +190,19 @@ function Drivers() {
               </p>
             </header>
 
-            <div className="cards-grid" aria-live="polite">
-              {[...drivers].sort((a, b) => {
-                const ratingA = driverRatings[a.name] || a.rating || 0;
-                const ratingB = driverRatings[b.name] || b.rating || 0;
-                return ratingB - ratingA;
-              }).map((driver) => {
-                const driverRating = driverRatings[driver.name] !== undefined ? driverRatings[driver.name] : (driver.rating || null);
-                const reviews = driverReviews[driver.name] || [];
-                const isExpanded = expandedDriver === driver.name;
+            {loading ? (
+              <p style={{ textAlign: "center", color: "var(--text-soft)" }}>Loading drivers...</p>
+            ) : (
+              <div className="cards-grid" aria-live="polite">
+                {[...drivers].sort((a, b) => {
+                  const ratingA = driverRatings[a.id || a.name] || a.rating || 0;
+                  const ratingB = driverRatings[b.id || b.name] || b.rating || 0;
+                  return ratingB - ratingA;
+                }).map((driver) => {
+                  const driverId = driver.id || driver.name;
+                  const driverRating = driverRatings[driverId] !== undefined ? driverRatings[driverId] : (driver.rating || null);
+                  const reviews = driverReviews[driverId] || [];
+                  const isExpanded = expandedDriver === driverId;
 
                 return (
                   <article className="card soft" key={driver.name}>
@@ -226,7 +271,7 @@ function Drivers() {
                     {/* Reviews Section */}
                     <div style={{ marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "2px solid var(--border-soft)" }}>
                       <button
-                        onClick={() => setExpandedDriver(isExpanded ? null : driver.name)}
+                        onClick={() => setExpandedDriver(isExpanded ? null : driverId)}
                         className="btn btn-outline btn-compact"
                         style={{ width: "100%", marginBottom: "1rem" }}
                       >
@@ -247,9 +292,11 @@ function Drivers() {
                                 }}>
                                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
                                     <div>
-                                      <strong style={{ fontSize: "0.9rem" }}>{review.name}</strong>
+                                      <strong style={{ fontSize: "0.9rem" }}>
+                                        Anonymous
+                                      </strong>
                                       <p style={{ fontSize: "0.8rem", color: "var(--text-soft)", margin: "0.25rem 0 0 0" }}>
-                                        {new Date(review.date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+                                        {new Date(review.created_at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
                                       </p>
                                     </div>
                                     <div className="rating">
@@ -258,7 +305,7 @@ function Drivers() {
                                       </span>
                                     </div>
                                   </div>
-                                  <p style={{ fontSize: "0.9rem", margin: 0, color: "var(--text-soft)" }}>{review.text}</p>
+                                  <p style={{ fontSize: "0.9rem", margin: 0, color: "var(--text-soft)" }}>{review.comment}</p>
                                 </div>
                               ))}
                             </div>
@@ -268,19 +315,20 @@ function Drivers() {
                             </p>
                           )}
 
-                          <ReviewForm
-                            type="driver"
-                            targetId={driver.name}
-                            targetName={driver.name}
-                            onReviewSubmit={(newReview) => handleReviewSubmit(driver.name, newReview)}
-                          />
+                          {driver.id && (
+                            <DriverReviewForm
+                              driverId={driver.id}
+                              onReviewSubmit={() => handleReviewSubmit(driver.id)}
+                            />
+                          )}
                         </div>
                       )}
                     </div>
                   </article>
                 );
               })}
-            </div>
+              </div>
+            )}
           </div>
         </section>
       </main>

@@ -149,3 +149,5 @@
 - Subscription features are placeholders
 - All routes protected with role-based middleware
 - JWT tokens expire after 7 days
+
+

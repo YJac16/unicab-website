@@ -1,50 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 function ProfileDropdown() {
   const [isOpen, setIsOpen] = useState(false);
-  const [user, setUser] = useState(null);
   const [mounted, setMounted] = useState(false);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
+  const { user, userRole, loading, signOut } = useAuth();
 
   useEffect(() => {
     setMounted(true);
-    
-    // Check for auth token and decode user info
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      try {
-        // Validate token format (should have 3 parts separated by dots)
-        const parts = token.split('.');
-        if (parts.length === 3) {
-          const payload = JSON.parse(atob(parts[1]));
-          // Validate payload has required fields
-          if (payload && (payload.email || payload.name || payload.role)) {
-            setUser({
-              name: payload.name || payload.email?.split('@')[0] || 'User',
-              email: payload.email,
-              role: payload.role
-            });
-          } else {
-            // Invalid token payload, remove it
-            localStorage.removeItem('auth_token');
-            setUser(null);
-          }
-        } else {
-          // Invalid token format, remove it
-          localStorage.removeItem('auth_token');
-          setUser(null);
-        }
-      } catch (error) {
-        console.error('Error decoding token:', error);
-        localStorage.removeItem('auth_token');
-        setUser(null);
-      }
-    } else {
-      // No token, ensure user is null
-      setUser(null);
-    }
 
     // Close dropdown when clicking outside
     const handleClickOutside = (event) => {
@@ -93,22 +59,45 @@ function ProfileDropdown() {
     );
   }
 
-  const handleSignOut = () => {
-    localStorage.removeItem('auth_token');
-    setUser(null);
+  const handleSignOut = async () => {
     setIsOpen(false);
+    await signOut();
     navigate('/');
-    window.location.reload(); // Refresh to update UI
+    // Small delay to ensure state updates before reload
+    setTimeout(() => {
+      window.location.reload();
+    }, 100);
   };
 
   const getDashboardPath = () => {
-    if (!user) return null;
-    const role = user.role?.toLowerCase();
+    if (!user || !userRole) return null;
+    const role = userRole.toLowerCase();
     if (role === 'admin') return '/admin/dashboard';
     if (role === 'driver') return '/driver/dashboard';
-    if (role === 'member') return '/member/dashboard';
+    if (role === 'member' || role === 'customer') return '/member/dashboard';
     return null;
   };
+
+  // Show loading state
+  if (loading || !mounted) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '0.75rem',
+        minWidth: '80px'
+      }}>
+        <div style={{ 
+          width: '20px', 
+          height: '20px', 
+          border: '2px solid var(--border-soft)',
+          borderTopColor: 'var(--accent-gold)',
+          borderRadius: '50%',
+          animation: 'spin 0.6s linear infinite'
+        }} />
+      </div>
+    );
+  }
 
   if (!user) {
     // Not logged in - show Sign In button
@@ -152,6 +141,8 @@ function ProfileDropdown() {
 
   // Logged in - show profile dropdown
   const dashboardPath = getDashboardPath();
+  const userName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'User';
+  const userEmail = user.email || '';
 
   return (
     <div ref={dropdownRef} style={{ position: 'relative', zIndex: 100 }}>
@@ -192,7 +183,7 @@ function ProfileDropdown() {
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
           <circle cx="12" cy="7" r="4"></circle>
         </svg>
-        <span>{user.name}</span>
+        <span>{userName}</span>
         <svg
           width="16"
           height="16"
@@ -234,12 +225,12 @@ function ProfileDropdown() {
             }}
           >
             <div style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--text-main)' }}>
-              {user.name}
+              {userName}
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-soft)', marginTop: '0.25rem' }}>
-              {user.email}
+              {userEmail}
             </div>
-            {user.role && (
+            {userRole && (
               <div
                 style={{
                   display: 'inline-block',
@@ -253,7 +244,7 @@ function ProfileDropdown() {
                   fontWeight: '600'
                 }}
               >
-                {user.role}
+                {userRole}
               </div>
             )}
           </div>
@@ -300,7 +291,7 @@ function ProfileDropdown() {
             )}
 
             <Link
-              to={user.role === 'ADMIN' ? '/admin/profile' : user.role === 'DRIVER' ? '/driver/profile' : '/member/profile'}
+              to={userRole === 'admin' ? '/admin/profile' : userRole === 'driver' ? '/driver/profile' : '/member/profile'}
               onClick={() => setIsOpen(false)}
               style={{
                 display: 'block',

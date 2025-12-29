@@ -159,3 +159,5 @@ ON CONFLICT (email) DO UPDATE SET
 - Use online generator: https://bcrypt-generator.com/
 - Or install: `npm install bcryptjs`
 - Then run: `node scripts/generate-hashes-simple.js`
+
+

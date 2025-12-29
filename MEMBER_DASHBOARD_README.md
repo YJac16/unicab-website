@@ -166,3 +166,5 @@ VALUES (
 - Only bookings with user_id are shown in member dashboard
 - Subscription features are placeholders for future implementation
 - All routes are protected with role-based middleware
+
+

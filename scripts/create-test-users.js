@@ -80,3 +80,5 @@ ON CONFLICT (email) DO UPDATE SET
   active = true;
 
 `);
+
+

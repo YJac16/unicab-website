@@ -233,3 +233,5 @@ curl http://localhost:3000/api/admin/bookings \
 - Unavailability model: record exists = unavailable, no record = available
 - Server-side validation prevents double-booking
 - JWT tokens expire after 7 days
+
+

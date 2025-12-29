@@ -150,10 +150,9 @@ export const getAvailableGuides = async (date) => {
   return { data: drivers, error: null };
 };
 
-// Drivers API (kept for backward compatibility)
-export const getAvailableDrivers = async (date, groupSize) => {
-  return getAvailableGuides(date);
-};
+// Drivers API
+// Note: getAvailableDrivers is defined below in the Supabase section (line 841)
+// This old version has been removed to avoid duplicate declaration
 
 export const getDrivers = async () => {
   if (!isSupabaseConfigured()) {
@@ -301,19 +300,8 @@ export const updateBooking = async (bookingId, updates) => {
 };
 
 // Driver Availability API
-export const getDriverAvailability = async (driverId) => {
-  if (!isSupabaseConfigured()) {
-    return { data: [], error: null };
-  }
-
-  const { data, error } = await supabase
-    .from('driver_availability')
-    .select('*')
-    .eq('driver_id', driverId)
-    .order('date', { ascending: true });
-
-  return { data, error };
-};
+// Note: getDriverAvailability is defined below in the Supabase section (line 711)
+// This old version has been removed to avoid duplicate declaration
 
 export const blockDriverDate = async (driverId, date, reason = '') => {
   if (!isSupabaseConfigured()) {
@@ -442,10 +430,6 @@ const driverApiCall = async (endpoint, options = {}) => {
   });
 };
 
-export const getDriverBookings = async () => {
-  return driverApiCall('/api/driver/bookings');
-};
-
 export const getDriverUnavailability = async () => {
   return driverApiCall('/api/driver/unavailability');
 };
@@ -481,11 +465,154 @@ export const getAdminDrivers = async () => {
   return adminApiCall('/api/admin/drivers');
 };
 
+// Create driver record for existing auth user
+// Note: User must already exist in auth.users and profiles table
 export const createDriver = async (driverData) => {
-  return adminApiCall('/api/admin/drivers', {
-    method: 'POST',
-    body: JSON.stringify(driverData),
-  });
+  if (!isSupabaseConfigured()) {
+    return { 
+      data: null, 
+      error: { 
+        message: 'Supabase not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.' 
+      } 
+    };
+  }
+
+  try {
+    const { name, email, phone, license_number } = driverData;
+
+    // Validate required fields
+    if (!name || !email) {
+      return {
+        data: null,
+        error: { message: 'Name and email are required' }
+      };
+    }
+
+    // Validate email format
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return {
+        data: null,
+        error: { message: 'Invalid email format' }
+      };
+    }
+
+    // Check if user exists in profiles table (which means they exist in auth.users)
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, email, role')
+      .eq('email', email.toLowerCase().trim())
+      .single();
+
+    if (profileError && profileError.code !== 'PGRST116') {
+      // PGRST116 means "no rows found" - that's expected if user doesn't exist
+      console.error('Error checking for user:', profileError);
+      return {
+        data: null,
+        error: { 
+          message: 'Unable to verify user. Please ensure the user account exists first.' 
+        }
+      };
+    }
+
+    if (!profileData) {
+      return {
+        data: null,
+        error: { 
+          message: 'User with this email does not exist. Please create the user account first in Supabase Authentication, then add them as a driver.' 
+        }
+      };
+    }
+
+    // Check if driver record already exists
+    const { data: existingDriver, error: driverCheckError } = await supabase
+      .from('drivers')
+      .select('id, email')
+      .eq('email', email.toLowerCase().trim())
+      .single();
+
+    if (existingDriver) {
+      return {
+        data: null,
+        error: { 
+          message: 'A driver with this email already exists.' 
+        }
+      };
+    }
+
+    // Check if user_id is already linked to another driver
+    const { data: existingDriverByUserId, error: userIdCheckError } = await supabase
+      .from('drivers')
+      .select('id, email')
+      .eq('user_id', profileData.id)
+      .single();
+
+    if (existingDriverByUserId) {
+      return {
+        data: null,
+        error: { 
+          message: 'This user is already linked to a driver account.' 
+        }
+      };
+    }
+
+    // Update profile role to 'driver' if not already
+    if (profileData.role !== 'driver') {
+      const { error: roleUpdateError } = await supabase
+        .from('profiles')
+        .update({ role: 'driver' })
+        .eq('id', profileData.id);
+
+      if (roleUpdateError) {
+        console.warn('Could not update profile role to driver:', roleUpdateError);
+        // Continue anyway - driver record can still be created
+      }
+    }
+
+    // Create driver record
+    const { data: newDriver, error: driverError } = await supabase
+      .from('drivers')
+      .insert({
+        user_id: profileData.id,
+        name: name.trim(),
+        email: email.toLowerCase().trim(),
+        phone: phone?.trim() || null,
+        license_number: license_number?.trim() || null,
+        active: true
+      })
+      .select()
+      .single();
+
+    if (driverError) {
+      console.error('Error creating driver record:', driverError);
+      return {
+        data: null,
+        error: { 
+          message: driverError.message || 'Failed to create driver record. Please check that the drivers table exists and you have permission to insert.' 
+        }
+      };
+    }
+
+    return {
+      data: {
+        user_id: profileData.id,
+        driver_id: newDriver.id,
+        name: newDriver.name,
+        email: newDriver.email,
+        phone: newDriver.phone,
+        license_number: newDriver.license_number,
+        status: 'active'
+      },
+      error: null
+    };
+  } catch (error) {
+    console.error('Exception creating driver:', error);
+    return {
+      data: null,
+      error: { 
+        message: error.message || 'An unexpected error occurred while creating the driver.' 
+      }
+    };
+  }
 };
 
 export const updateDriverStatus = async (driverId, active) => {
@@ -512,6 +639,407 @@ export const unblockDriverDateAdmin = async (driverId, date) => {
   });
 };
 
+// ============================================================
+// BOOKINGS API (Customer, Driver, Admin)
+// ============================================================
+
+// Customer: Create booking
+export const createBookingSupabase = async (bookingData) => {
+  if (!isSupabaseConfigured()) {
+    return { data: null, error: { message: 'Supabase not configured' } };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('bookings')
+      .insert({
+        user_id: bookingData.user_id || null, // Will be set from auth if logged in
+        tour_id: bookingData.tour_id,
+        driver_id: bookingData.driver_id,
+        booking_date: bookingData.booking_date || bookingData.date,
+        group_size: bookingData.group_size || 1,
+        status: 'pending',
+        customer_name: bookingData.customer_name,
+        customer_email: bookingData.customer_email,
+        customer_phone: bookingData.customer_phone || null,
+        special_requests: bookingData.special_requests || null,
+        price_per_person: bookingData.price_per_person || 0,
+        total_price: bookingData.total_price || 0
+      })
+      .select()
+      .single();
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+};
+
+// Customer: Get own bookings
+export const getCustomerBookings = async () => {
+  if (!isSupabaseConfigured()) {
+    return { data: null, error: { message: 'Supabase not configured' } };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select(`
+        *,
+        tour:tours(*),
+        driver:drivers(*)
+      `)
+      .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+      .order('booking_date', { ascending: false });
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+};
+
+// Driver: Get assigned bookings
+export const getDriverBookings = async () => {
+  if (!isSupabaseConfigured()) {
+    return { data: null, error: { message: 'Supabase not configured' } };
+  }
+
+  try {
+    // First get driver_id from drivers table
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) {
+      return { data: null, error: { message: 'Not authenticated' } };
+    }
+
+    const { data: driverData } = await supabase
+      .from('drivers')
+      .select('id')
+      .eq('user_id', userData.user.id)
+      .single();
+
+    if (!driverData) {
+      return { data: [], error: null };
+    }
+
+    const { data, error } = await supabase
+      .from('bookings')
+      .select(`
+        *,
+        tour:tours(*),
+        customer:profiles!bookings_user_id_fkey(id, email, full_name)
+      `)
+      .eq('driver_id', driverData.id)
+      .order('booking_date', { ascending: false });
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+};
+
+// Driver: Update booking status
+export const updateBookingStatusDriver = async (bookingId, status) => {
+  if (!isSupabaseConfigured()) {
+    return { data: null, error: { message: 'Supabase not configured' } };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('bookings')
+      .update({ status })
+      .eq('id', bookingId)
+      .select()
+      .single();
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+};
+
+// Admin: Get all bookings
+export const getAdminBookingsSupabase = async (filters = {}) => {
+  if (!isSupabaseConfigured()) {
+    return { data: null, error: { message: 'Supabase not configured' } };
+  }
+
+  try {
+    let query = supabase
+      .from('bookings')
+      .select(`
+        *,
+        tour:tours(*),
+        driver:drivers(*),
+        customer:profiles!bookings_user_id_fkey(id, email, full_name)
+      `);
+
+    if (filters.status) {
+      query = query.eq('status', filters.status);
+    }
+    if (filters.date_from) {
+      query = query.gte('booking_date', filters.date_from);
+    }
+    if (filters.date_to) {
+      query = query.lte('booking_date', filters.date_to);
+    }
+    if (filters.driver_id) {
+      query = query.eq('driver_id', filters.driver_id);
+    }
+
+    const { data, error } = await query.order('booking_date', { ascending: false });
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+};
+
+// Admin: Assign driver to booking
+export const assignDriverToBooking = async (bookingId, driverId) => {
+  if (!isSupabaseConfigured()) {
+    return { data: null, error: { message: 'Supabase not configured' } };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('bookings')
+      .update({ driver_id: driverId })
+      .eq('id', bookingId)
+      .select()
+      .single();
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+};
+
+// Admin: Update booking status
+export const updateBookingStatusAdmin = async (bookingId, status) => {
+  if (!isSupabaseConfigured()) {
+    return { data: null, error: { message: 'Supabase not configured' } };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('bookings')
+      .update({ status })
+      .eq('id', bookingId)
+      .select()
+      .single();
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+};
+
+// ============================================================
+// DRIVER AVAILABILITY API
+// ============================================================
+
+// Driver: Get own availability
+export const getDriverAvailability = async (startDate, endDate) => {
+  if (!isSupabaseConfigured()) {
+    return { data: null, error: { message: 'Supabase not configured' } };
+  }
+
+  try {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) {
+      return { data: null, error: { message: 'Not authenticated' } };
+    }
+
+    const { data: driverData } = await supabase
+      .from('drivers')
+      .select('id')
+      .eq('user_id', userData.user.id)
+      .single();
+
+    if (!driverData) {
+      return { data: [], error: null };
+    }
+
+    let query = supabase
+      .from('driver_availability')
+      .select('*')
+      .eq('driver_id', driverData.id);
+
+    if (startDate) {
+      query = query.gte('date', startDate);
+    }
+    if (endDate) {
+      query = query.lte('date', endDate);
+    }
+
+    const { data, error } = await query.order('date', { ascending: true });
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+};
+
+// Driver: Set availability for a date
+export const setDriverAvailability = async (date, available, reason = null) => {
+  if (!isSupabaseConfigured()) {
+    return { data: null, error: { message: 'Supabase not configured' } };
+  }
+
+  try {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) {
+      return { data: null, error: { message: 'Not authenticated' } };
+    }
+
+    const { data: driverData } = await supabase
+      .from('drivers')
+      .select('id')
+      .eq('user_id', userData.user.id)
+      .single();
+
+    if (!driverData) {
+      return { data: null, error: { message: 'Driver record not found' } };
+    }
+
+    const { data, error } = await supabase
+      .from('driver_availability')
+      .upsert({
+        driver_id: driverData.id,
+        date,
+        available,
+        reason
+      }, {
+        onConflict: 'driver_id,date'
+      })
+      .select()
+      .single();
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+};
+
+// Admin: Get all driver availability
+export const getAdminDriverAvailability = async (driverId = null, startDate = null, endDate = null) => {
+  if (!isSupabaseConfigured()) {
+    return { data: null, error: { message: 'Supabase not configured' } };
+  }
+
+  try {
+    let query = supabase
+      .from('driver_availability')
+      .select(`
+        *,
+        driver:drivers(id, name, email)
+      `);
+
+    if (driverId) {
+      query = query.eq('driver_id', driverId);
+    }
+    if (startDate) {
+      query = query.gte('date', startDate);
+    }
+    if (endDate) {
+      query = query.lte('date', endDate);
+    }
+
+    const { data, error } = await query.order('date', { ascending: true });
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+};
+
+// Admin: Override driver availability
+export const overrideDriverAvailability = async (driverId, date, available, reason = null) => {
+  if (!isSupabaseConfigured()) {
+    return { data: null, error: { message: 'Supabase not configured' } };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('driver_availability')
+      .upsert({
+        driver_id: driverId,
+        date,
+        available,
+        reason
+      }, {
+        onConflict: 'driver_id,date'
+      })
+      .select()
+      .single();
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+};
+
+// Get available drivers for a date
+// Accepts optional groupSize parameter for backward compatibility (not currently used)
+export const getAvailableDrivers = async (date, groupSize = null) => {
+  if (!isSupabaseConfigured()) {
+    return { data: null, error: { message: 'Supabase not configured' } };
+  }
+
+  try {
+    // Use the helper function from database
+    const { data, error } = await supabase.rpc('get_available_drivers', {
+      check_date: date
+    });
+
+    return { data, error };
+  } catch (error) {
+    // Fallback: manual query if RPC doesn't work
+    try {
+      const { data: drivers, error: driversError } = await supabase
+        .from('drivers')
+        .select('*')
+        .eq('active', true);
+
+      if (driversError) {
+        return { data: null, error: driversError };
+      }
+
+      // Filter drivers who are available
+      const availableDrivers = [];
+      for (const driver of drivers || []) {
+        // Check if driver has booking on this date
+        const { data: booking } = await supabase
+          .from('bookings')
+          .select('id')
+          .eq('driver_id', driver.id)
+          .eq('booking_date', date)
+          .in('status', ['pending', 'confirmed'])
+          .single();
+
+        if (booking) continue;
+
+        // Check availability
+        const { data: availability } = await supabase
+          .from('driver_availability')
+          .select('available')
+          .eq('driver_id', driver.id)
+          .eq('date', date)
+          .single();
+
+        const isAvailable = availability ? availability.available : true;
+        if (isAvailable) {
+          availableDrivers.push(driver);
+        }
+      }
+
+      return { data: availableDrivers, error: null };
+    } catch (fallbackError) {
+      return { data: null, error: fallbackError };
+    }
+  }
+};
+
 // Member API (requires authentication token)
 const memberApiCall = async (endpoint, options = {}) => {
   const token = localStorage.getItem('auth_token');
@@ -535,6 +1063,157 @@ export const register = async (userData) => {
     body: JSON.stringify(userData),
   });
 };
+
+// Reviews API - New review tables
+export const getTourReviews = async (tourId) => {
+  if (!isSupabaseConfigured()) {
+    return { data: [], error: null };
+  }
+  const { data, error } = await supabase
+    .from('tour_reviews')
+    .select('*')
+    .eq('tour_id', tourId)
+    .eq('approved', true)
+    .order('created_at', { ascending: false });
+  
+  // Note: We can't directly query auth.users from client
+  // User info will be handled in the display component
+  
+  return { data, error };
+};
+
+export const getDriverReviews = async (driverId) => {
+  if (!isSupabaseConfigured()) {
+    return { data: [], error: null };
+  }
+  const { data, error } = await supabase
+    .from('driver_reviews')
+    .select('*')
+    .eq('driver_id', driverId)
+    .eq('approved', true)
+    .order('created_at', { ascending: false });
+  
+  // Note: We can't directly query auth.users from client
+  // User info will be handled in the display component
+  
+  return { data, error };
+};
+
+export const getTourReviewStats = async (tourId) => {
+  if (!isSupabaseConfigured()) {
+    return { data: { average: 0, count: 0 }, error: null };
+  }
+  const { data, error } = await supabase
+    .from('tour_reviews')
+    .select('rating')
+    .eq('tour_id', tourId)
+    .eq('approved', true);
+  
+  if (error) return { data: { average: 0, count: 0 }, error };
+  
+  const count = data?.length || 0;
+  const average = count > 0 
+    ? data.reduce((sum, r) => sum + r.rating, 0) / count 
+    : 0;
+  
+  return { data: { average, count }, error: null };
+};
+
+export const getDriverReviewStats = async (driverId) => {
+  if (!isSupabaseConfigured()) {
+    return { data: { average: 0, count: 0 }, error: null };
+  }
+  const { data, error } = await supabase
+    .from('driver_reviews')
+    .select('rating')
+    .eq('driver_id', driverId)
+    .eq('approved', true);
+  
+  if (error) return { data: { average: 0, count: 0 }, error };
+  
+  const count = data?.length || 0;
+  const average = count > 0 
+    ? data.reduce((sum, r) => sum + r.rating, 0) / count 
+    : 0;
+  
+  return { data: { average, count }, error: null };
+};
+
+// Admin Review Moderation API
+export const getPendingReviews = async (filterType = null) => {
+  if (!isSupabaseConfigured()) {
+    return { data: [], error: null };
+  }
+  
+  const { user } = await supabase.auth.getUser();
+  if (!user) {
+    return { data: [], error: { message: 'Not authenticated' } };
+  }
+
+  let query = supabase
+    .from('tour_reviews')
+    .select('*, tours(name), bookings(id, customer_name, customer_email, date)')
+    .eq('approved', false)
+    .order('created_at', { ascending: false });
+
+  const { data: tourReviews, error: tourError } = await query;
+
+  let driverQuery = supabase
+    .from('driver_reviews')
+    .select('*, drivers(name), bookings(id, customer_name, customer_email, date)')
+    .eq('approved', false)
+    .order('created_at', { ascending: false });
+
+  const { data: driverReviews, error: driverError } = await driverQuery;
+
+  if (tourError || driverError) {
+    return { data: [], error: tourError || driverError };
+  }
+
+  const allReviews = [
+    ...(tourReviews || []).map(r => ({ ...r, review_type: 'tour' })),
+    ...(driverReviews || []).map(r => ({ ...r, review_type: 'driver' }))
+  ];
+
+  // Filter by type if specified
+  const filtered = filterType 
+    ? allReviews.filter(r => r.review_type === filterType)
+    : allReviews;
+
+  return { data: filtered, error: null };
+};
+
+export const approveReview = async (reviewId, reviewType) => {
+  if (!isSupabaseConfigured()) {
+    return { data: null, error: { message: 'Supabase not configured' } };
+  }
+  
+  const table = reviewType === 'tour' ? 'tour_reviews' : 'driver_reviews';
+  const { data, error } = await supabase
+    .from(table)
+    .update({ approved: true })
+    .eq('id', reviewId)
+    .select()
+    .single();
+  
+  return { data, error };
+};
+
+export const rejectReview = async (reviewId, reviewType) => {
+  if (!isSupabaseConfigured()) {
+    return { data: null, error: { message: 'Supabase not configured' } };
+  }
+  
+  const table = reviewType === 'tour' ? 'tour_reviews' : 'driver_reviews';
+  const { data, error } = await supabase
+    .from(table)
+    .delete()
+    .eq('id', reviewId);
+  
+  return { data, error };
+};
+
+
 
 
 

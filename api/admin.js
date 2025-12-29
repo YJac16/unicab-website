@@ -166,22 +166,17 @@ router.get('/drivers', async (req, res) => {
 });
 
 // POST /api/admin/drivers
-// Create guide + user account (driver)
+// Create driver account using Supabase Auth
+// Creates: auth user, profile with role='driver', drivers table record
 router.post('/drivers', async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, phone, license_number, password } = req.body;
 
-    if (!name || !email || !password) {
+    // Validate required fields
+    if (!name || !email) {
       return res.status(400).json({
         success: false,
-        error: 'Name, email, and password are required'
-      });
-    }
-
-    if (!db.isConfigured()) {
-      return res.status(501).json({
-        success: false,
-        error: 'Database not configured'
+        error: 'Name and email are required'
       });
     }
 
@@ -193,55 +188,161 @@ router.post('/drivers', async (req, res) => {
       });
     }
 
-    // Check if guide or user already exists
-    const guideExists = await db.guideExists(email);
-    const userExists = await db.userExists(email);
+    // Check if Supabase is configured
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (guideExists || userExists) {
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return res.status(501).json({
+        success: false,
+        error: 'Supabase not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY'
+      });
+    }
+
+    const { createClient } = require('@supabase/supabase-js');
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
+
+    // Check if user already exists in auth.users
+    const { data: existingUser } = await supabaseAdmin.auth.admin.getUserByEmail(email.toLowerCase().trim());
+    
+    if (existingUser?.user) {
       return res.status(409).json({
         success: false,
-        error: 'A guide or user with this email already exists'
+        error: 'A user with this email already exists'
       });
     }
 
-    // Validate password strength
-    if (password.length < 6) {
-      return res.status(400).json({
+    // Check if driver record already exists
+    const { data: existingDriver } = await supabaseAdmin
+      .from('drivers')
+      .select('id, email')
+      .eq('email', email.toLowerCase().trim())
+      .single();
+
+    if (existingDriver) {
+      return res.status(409).json({
         success: false,
-        error: 'Password must be at least 6 characters'
+        error: 'A driver with this email already exists'
       });
     }
 
-    // Create guide first
-    const guideResult = await db.createGuide({
-      name: name.trim(),
-      email: email.toLowerCase().trim(),
-      active: true
-    });
+    let authUser;
+    let inviteSent = false;
 
-    const guideId = guideResult.rows[0].id;
+    // Create auth user
+    if (password) {
+      // Create user with password (immediate login)
+      const { data: userData, error: createError } = await supabaseAdmin.auth.admin.createUser({
+        email: email.toLowerCase().trim(),
+        password: password,
+        email_confirm: true, // Auto-confirm email
+        user_metadata: {
+          full_name: name.trim(),
+          role: 'driver'
+        }
+      });
 
-    // Hash password and create user account
-    const passwordHash = await bcrypt.hash(password, 10);
-    const userResult = await db.createUser({
-      name: name.trim(),
-      email: email.toLowerCase().trim(),
-      password_hash: passwordHash,
-      role: 'DRIVER',
-      guide_id: guideId,
-      active: true
-    });
+      if (createError) {
+        return res.status(400).json({
+          success: false,
+          error: 'Failed to create auth user',
+          message: createError.message
+        });
+      }
+
+      authUser = userData.user;
+    } else {
+      // Invite user via email (no password set)
+      const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+        email.toLowerCase().trim(),
+        {
+          data: {
+            full_name: name.trim(),
+            role: 'driver'
+          }
+        }
+      );
+
+      if (inviteError) {
+        return res.status(400).json({
+          success: false,
+          error: 'Failed to invite user',
+          message: inviteError.message
+        });
+      }
+
+      authUser = inviteData.user;
+      inviteSent = true;
+    }
+
+    if (!authUser?.id) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to create auth user'
+      });
+    }
+
+    const userId = authUser.id;
+
+    // Create profile with role='driver'
+    const { error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .insert({
+        id: userId,
+        email: email.toLowerCase().trim(),
+        role: 'driver',
+        full_name: name.trim()
+      });
+
+    if (profileError) {
+      // If profile insert fails, try to clean up auth user
+      console.error('Profile creation error:', profileError);
+      // Note: We don't delete auth user as it might be intentional (e.g., profile already exists)
+    }
+
+    // Create driver record
+    const { data: driverData, error: driverError } = await supabaseAdmin
+      .from('drivers')
+      .insert({
+        user_id: userId,
+        name: name.trim(),
+        email: email.toLowerCase().trim(),
+        phone: phone?.trim() || null,
+        license_number: license_number?.trim() || null,
+        active: true
+      })
+      .select()
+      .single();
+
+    if (driverError) {
+      console.error('Driver creation error:', driverError);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to create driver record',
+        message: driverError.message
+      });
+    }
 
     res.status(201).json({
       success: true,
       data: {
-        guide_id: guideId,
-        user_id: userResult.rows[0].id,
+        user_id: userId,
+        driver_id: driverData.id,
         name: name.trim(),
         email: email.toLowerCase().trim(),
-        role: 'DRIVER'
+        phone: phone?.trim() || null,
+        license_number: license_number?.trim() || null,
+        invite_sent: inviteSent,
+        status: inviteSent ? 'pending_invite' : 'active'
       },
-      message: 'Driver and user account created successfully'
+      message: inviteSent 
+        ? 'Driver invited successfully. They will receive an email to set their password.'
+        : 'Driver account created successfully'
     });
   } catch (error) {
     console.error('Error creating driver:', error);

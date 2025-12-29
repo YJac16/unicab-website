@@ -217,3 +217,5 @@ Replace `[tour-id]` with an actual tour ID from your data:
 - Check Network tab for failed API calls
 - Review `BOOKING_SYSTEM_README.md` for system overview
 - Review `ENV_SETUP.md` for environment setup
+
+

@@ -84,3 +84,5 @@ After setup, you can test with:
 ### "Table 'users' does not exist"
 - Run the database migrations
 - Check table name matches (should be `users`, not `user`)
+
+

@@ -81,3 +81,5 @@ JWT_SECRET=${jwtSecret}
 }
 
 setup().catch(console.error);
+
+

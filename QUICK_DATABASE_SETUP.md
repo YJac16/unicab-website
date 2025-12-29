@@ -88,3 +88,5 @@ Look for: `✅ Database: Using Supabase (service role)`
 - Check password hashes are correct
 
 **Need help?** See `DATABASE_SETUP_STEP_BY_STEP.md` for detailed instructions.
+
+

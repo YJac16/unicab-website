@@ -72,3 +72,5 @@ To enable Stripe payments:
 - `STRIPE_SECRET_KEY` should **only** be used server-side
 - `STRIPE_WEBHOOK_SECRET` should **only** be used server-side
 - Frontend can safely use `STRIPE_PUBLISHABLE_KEY`
+
+

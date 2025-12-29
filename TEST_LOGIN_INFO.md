@@ -74,3 +74,5 @@
 `supabase/migrations/005_create_test_users.sql`
 
 This file is ready to run - just execute it in your database!
+
+

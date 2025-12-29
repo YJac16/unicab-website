@@ -20,28 +20,48 @@ function AddDriverForm({ onDriverAdded }) {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    password: ''
+    phone: '',
+    license_number: ''
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [successData, setSuccessData] = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
+    setSuccessData(null);
     setLoading(true);
 
     try {
-      const { error: createError } = await createDriver(formData);
+      // Prepare data
+      const driverData = {
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim() || null,
+        license_number: formData.license_number.trim() || null
+      };
+
+      const { data: responseData, error: createError } = await createDriver(driverData);
       
       if (createError) {
         setError(createError.message || createError.error || 'Failed to create driver');
       } else {
-        setSuccess('Driver created successfully!');
-        setFormData({ name: '', email: '', password: '' });
-        setShowForm(false);
-        onDriverAdded();
+        // Handle response structure
+        const driverInfo = responseData?.data || responseData;
+        const message = 'Driver record created successfully!';
+        setSuccess(message);
+        setSuccessData(driverInfo);
+        setFormData({ name: '', email: '', phone: '', license_number: '' });
+        // Don't close form immediately - let admin see success message
+        setTimeout(() => {
+          setShowForm(false);
+          setSuccess('');
+          setSuccessData(null);
+          onDriverAdded();
+        }, 3000);
       }
     } catch (err) {
       setError('An error occurred. Please try again.');
@@ -97,14 +117,30 @@ function AddDriverForm({ onDriverAdded }) {
               marginBottom: "1rem",
               color: "#3c3"
             }}>
-              {success}
+                  <div style={{ fontWeight: "600", marginBottom: "0.5rem" }}>{success}</div>
+              {successData && (
+                <div style={{ fontSize: "0.9rem", marginTop: "0.5rem" }}>
+                  <div><strong>Driver Name:</strong> {successData.name}</div>
+                  <div><strong>Email:</strong> {successData.email}</div>
+                  {successData.phone && <div><strong>Phone:</strong> {successData.phone}</div>}
+                  {successData.license_number && <div><strong>License:</strong> {successData.license_number}</div>}
+                  <div style={{ marginTop: "0.5rem", padding: "0.5rem", background: "#d4edda", borderRadius: "4px", fontSize: "0.85rem", color: "#155724" }}>
+                    ✅ Driver record created and linked to user account
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "1rem", marginBottom: "1rem" }}>
+          <div style={{ 
+            display: "grid", 
+            gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", 
+            gap: "1rem", 
+            marginBottom: "1rem" 
+          }}>
             <div>
               <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
-                Name *
+                Driver Name *
               </label>
               <input
                 type="text"
@@ -117,7 +153,7 @@ function AddDriverForm({ onDriverAdded }) {
                   border: "1px solid var(--border-soft)",
                   borderRadius: "8px"
                 }}
-                placeholder="Driver name"
+                placeholder="John Doe"
               />
             </div>
 
@@ -142,22 +178,60 @@ function AddDriverForm({ onDriverAdded }) {
 
             <div>
               <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
-                Password *
+                Phone
               </label>
               <input
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                required
-                minLength={6}
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 style={{
                   width: "100%",
                   padding: "0.75rem",
                   border: "1px solid var(--border-soft)",
                   borderRadius: "8px"
                 }}
-                placeholder="Minimum 6 characters"
+                placeholder="+27123456789"
               />
+            </div>
+
+            <div>
+              <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
+                License Number
+              </label>
+              <input
+                type="text"
+                value={formData.license_number}
+                onChange={(e) => setFormData({ ...formData, license_number: e.target.value })}
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  border: "1px solid var(--border-soft)",
+                  borderRadius: "8px"
+                }}
+                placeholder="DL123456"
+              />
+            </div>
+          </div>
+
+          <div style={{ 
+            marginBottom: "1rem", 
+            padding: "1rem", 
+            background: "#fff3cd", 
+            borderRadius: "8px",
+            border: "1px solid #ffc107",
+            fontSize: "0.9rem"
+          }}>
+            <div style={{ fontWeight: "600", marginBottom: "0.5rem", color: "#856404" }}>
+              ℹ️ Important: User Account Required
+            </div>
+            <div style={{ color: "#856404" }}>
+              The user must already exist in Supabase Authentication before adding them as a driver.
+              <br />
+              <strong>Steps:</strong>
+              <ol style={{ marginTop: "0.5rem", paddingLeft: "1.5rem" }}>
+                <li>Create the user account in Supabase Dashboard → Authentication → Users</li>
+                <li>Then use this form to link them as a driver</li>
+              </ol>
             </div>
           </div>
 

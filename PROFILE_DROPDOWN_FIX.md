@@ -61,3 +61,5 @@ The sign in dropdown tab was not showing in the header.
 - `src/pages/Home.jsx` - Updated header layout
 - `src/pages/Tours.jsx` - Updated header layout
 - `src/styles.css` - Added visibility CSS rules
+
+

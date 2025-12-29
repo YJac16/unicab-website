@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { tours } from "../data";
+import { getTour, getTourReviews, getTourReviewStats } from "../lib/api";
 import BackToTop from "../components/BackToTop";
-import ReviewForm from "../components/ReviewForm";
+import TourReviewForm from "../components/TourReviewForm";
 
 const formatStars = (rating) => {
   const fullStars = Math.round(rating);
@@ -13,27 +14,64 @@ function TourDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [navOpen, setNavOpen] = useState(false);
+  const [tour, setTour] = useState(null);
   const [tourReviews, setTourReviews] = useState([]);
   const [tourRating, setTourRating] = useState(null);
-  
-  const tour = tours.find((t) => t.id === id);
+  const [reviewStats, setReviewStats] = useState({ average: 0, count: 0 });
+  const [loading, setLoading] = useState(true);
 
-  // Load reviews from localStorage
+  // Load tour and reviews
   useEffect(() => {
-    if (tour) {
-      const allReviews = JSON.parse(localStorage.getItem("unicab_reviews") || "[]");
-      const reviews = allReviews.filter(r => r.type === "tour" && r.targetId === tour.id);
-      setTourReviews(reviews);
-      
-      // Calculate average rating
-      if (reviews.length > 0) {
-        const avgRating = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
-        setTourRating(avgRating);
-      } else {
-        setTourRating(tour.rating || null);
+    const loadTourAndReviews = async () => {
+      setLoading(true);
+      try {
+        // Try to get tour from database first
+        const { data: dbTour, error: tourError } = await getTour(id);
+        if (dbTour && !tourError) {
+          setTour(dbTour);
+        } else {
+          // Fallback to local data
+          const localTour = tours.find((t) => t.id === id);
+          setTour(localTour);
+        }
+
+        // Load reviews from database
+        const { data: reviews, error: reviewsError } = await getTourReviews(id);
+        if (!reviewsError && reviews) {
+          setTourReviews(reviews);
+        }
+
+        // Load review stats
+        const { data: stats, error: statsError } = await getTourReviewStats(id);
+        if (!statsError && stats) {
+          setReviewStats(stats);
+          setTourRating(stats.average > 0 ? stats.average : null);
+        }
+      } catch (err) {
+        console.error('Error loading tour:', err);
+        // Fallback to local data
+        const localTour = tours.find((t) => t.id === id);
+        setTour(localTour);
+      } finally {
+        setLoading(false);
       }
-    }
-  }, [tour]);
+    };
+
+    loadTourAndReviews();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '50vh' 
+      }}>
+        <p>Loading...</p>
+      </div>
+    );
+  }
 
   if (!tour) {
     return (
@@ -209,9 +247,9 @@ function TourDetail() {
                     </span>
                     <span style={{ fontSize: "1rem", marginLeft: "0.5rem" }}>
                       {tourRating.toFixed(1)}/5
-                      {tourReviews.length > 0 && (
+                      {reviewStats.count > 0 && (
                         <span style={{ fontSize: "0.85rem", color: "var(--text-soft)", marginLeft: "0.5rem" }}>
-                          ({tourReviews.length} review{tourReviews.length !== 1 ? "s" : ""})
+                          ({reviewStats.count} review{reviewStats.count !== 1 ? "s" : ""})
                         </span>
                       )}
                     </span>
@@ -250,15 +288,19 @@ function TourDetail() {
               <div style={{ marginTop: "3rem" }}>
                 <h2 style={{ fontSize: "1.5rem", marginBottom: "1.5rem" }}>Guest Reviews</h2>
                 
-                {tourReviews.length > 0 ? (
+                {loading ? (
+                  <p style={{ color: "var(--text-soft)", marginBottom: "2rem" }}>Loading reviews...</p>
+                ) : tourReviews.length > 0 ? (
                   <div style={{ marginBottom: "2rem" }}>
                     {tourReviews.map((review) => (
                       <article key={review.id} className="card soft" style={{ marginBottom: "1rem" }}>
                         <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                           <div>
-                            <h3 className="card-title" style={{ margin: 0 }}>{review.name}</h3>
+                            <h3 className="card-title" style={{ margin: 0 }}>
+                              Anonymous
+                            </h3>
                             <p className="card-meta" style={{ margin: "0.25rem 0 0 0", fontSize: "0.85rem" }}>
-                              {new Date(review.date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+                              {new Date(review.created_at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
                             </p>
                           </div>
                           <div className="rating">
@@ -267,7 +309,7 @@ function TourDetail() {
                             </span>
                           </div>
                         </div>
-                        <p className="card-body" style={{ margin: "0.5rem 0 0 0" }}>{review.text}</p>
+                        <p className="card-body" style={{ margin: "0.5rem 0 0 0" }}>{review.comment}</p>
                       </article>
                     ))}
                   </div>
@@ -277,18 +319,21 @@ function TourDetail() {
                   </p>
                 )}
 
-                <ReviewForm
-                  type="tour"
-                  targetId={tour.id}
-                  targetName={tour.name}
-                  onReviewSubmit={(newReview) => {
-                    setTourReviews([...tourReviews, newReview]);
-                    // Recalculate average rating
-                    const allReviews = [...tourReviews, newReview];
-                    const avgRating = allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length;
-                    setTourRating(avgRating);
-                  }}
-                />
+                {tour && (
+                  <TourReviewForm
+                    tourId={tour.id}
+                    onReviewSubmit={async () => {
+                      // Reload reviews after submission
+                      const { data: reviews } = await getTourReviews(id);
+                      if (reviews) setTourReviews(reviews);
+                      const { data: stats } = await getTourReviewStats(id);
+                      if (stats) {
+                        setReviewStats(stats);
+                        setTourRating(stats.average > 0 ? stats.average : null);
+                      }
+                    }}
+                  />
+                )}
               </div>
 
               <div style={{ marginTop: "3rem", padding: "2rem", backgroundColor: "var(--bg-elevated)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-soft)" }}>

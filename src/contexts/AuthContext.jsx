@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 const AuthContext = createContext({});
@@ -16,59 +16,122 @@ export const AuthProvider = ({ children }) => {
   const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [driverProfile, setDriverProfile] = useState(null);
+  const initializedRef = useRef(false);
 
-  useEffect(() => {
-    if (!isSupabaseConfigured()) {
-      setLoading(false);
-      return;
-    }
-
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchUserRole(session.user.id);
-        fetchDriverProfile(session.user.id);
-      }
-      setLoading(false);
-    });
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchUserRole(session.user.id);
-        await fetchDriverProfile(session.user.id);
-      } else {
-        setUserRole(null);
-        setDriverProfile(null);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
+  // Fetch user role from profiles table
   const fetchUserRole = async (userId) => {
     try {
-      const { data, error } = await supabase
-        .from('user_roles')
+      // Try profiles table first (as per user's context)
+      let { data, error } = await supabase
+        .from('profiles')
         .select('role')
-        .eq('user_id', userId)
+        .eq('id', userId)
         .single();
+
+      // If profiles table doesn't exist or returns error, try user_roles table
+      if (error && error.code !== 'PGRST116') {
+        console.log('Profiles table not found, trying user_roles...', error);
+        const result = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', userId)
+          .single();
+        
+        data = result.data;
+        error = result.error;
+      }
 
       if (error && error.code !== 'PGRST116') {
         console.error('Error fetching user role:', error);
+        setUserRole('customer');
         return;
       }
 
-      setUserRole(data?.role || 'customer');
+      const role = data?.role?.toLowerCase() || 'customer';
+      setUserRole(role);
+      console.log('User role fetched:', role, 'for user:', userId);
     } catch (error) {
       console.error('Error fetching user role:', error);
       setUserRole('customer');
     }
   };
+
+  // Initialize auth state on mount
+  useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured');
+      setLoading(false);
+      return;
+    }
+
+    // Set a timeout to prevent infinite loading
+    const loadingTimeout = setTimeout(() => {
+      console.warn('Auth initialization timeout - setting loading to false');
+      setLoading(false);
+    }, 5000); // 5 second timeout
+
+    // Initialize session immediately
+    const initializeAuth = async () => {
+      try {
+        // Get initial session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('Error getting session:', sessionError);
+          clearTimeout(loadingTimeout);
+          setLoading(false);
+          return;
+        }
+
+        if (session?.user) {
+          console.log('Session found for user:', session.user.id);
+          setUser(session.user);
+          // Fetch role immediately
+          await fetchUserRole(session.user.id);
+          await fetchDriverProfile(session.user.id);
+        } else {
+          console.log('No session found');
+          setUser(null);
+          setUserRole(null);
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+      } finally {
+        clearTimeout(loadingTimeout);
+        setLoading(false);
+      }
+    };
+
+    initializeAuth();
+
+    // Listen for auth state changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user?.id);
+      
+      if (event === 'SIGNED_OUT' || !session?.user) {
+        // Clear all auth state on sign out
+        setUser(null);
+        setUserRole(null);
+        setDriverProfile(null);
+        // Clear any cached tokens
+        localStorage.removeItem('auth_token');
+      } else if (session?.user) {
+        setUser(session.user);
+        // Fetch role after session is established
+        await fetchUserRole(session.user.id);
+        await fetchDriverProfile(session.user.id);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const fetchDriverProfile = async (userId) => {
     try {
@@ -94,17 +157,30 @@ export const AuthProvider = ({ children }) => {
       return { error: { message: 'Supabase not configured' } };
     }
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (!error && data?.user) {
-      await fetchUserRole(data.user.id);
-      await fetchDriverProfile(data.user.id);
+      if (error) {
+        console.error('Sign in error:', error);
+        return { data: null, error };
+      }
+
+      if (data?.user) {
+        console.log('Sign in successful for user:', data.user.id);
+        setUser(data.user);
+        // Fetch role after successful login
+        await fetchUserRole(data.user.id);
+        await fetchDriverProfile(data.user.id);
+      }
+
+      return { data, error: null };
+    } catch (err) {
+      console.error('Sign in exception:', err);
+      return { data: null, error: { message: err.message || 'Sign in failed' } };
     }
-
-    return { data, error };
   };
 
   const signUp = async (email, password, metadata = {}) => {
@@ -131,16 +207,43 @@ export const AuthProvider = ({ children }) => {
     return { data, error };
   };
 
+  const signInWithGoogle = async () => {
+    if (!isSupabaseConfigured()) {
+      return { error: { message: 'Supabase not configured' } };
+    }
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+
+    return { data, error };
+  };
+
   const signOut = async () => {
     if (!isSupabaseConfigured()) {
       return { error: { message: 'Supabase not configured' } };
     }
 
-    const { error } = await supabase.auth.signOut();
-    setUser(null);
-    setUserRole(null);
-    setDriverProfile(null);
-    return { error };
+    try {
+      const { error } = await supabase.auth.signOut();
+      setUser(null);
+      setUserRole(null);
+      setDriverProfile(null);
+      // Clear any JWT tokens from localStorage
+      localStorage.removeItem('auth_token');
+      return { error };
+    } catch (err) {
+      console.error('Sign out error:', err);
+      // Still clear state even if signOut fails
+      setUser(null);
+      setUserRole(null);
+      setDriverProfile(null);
+      localStorage.removeItem('auth_token');
+      return { error: { message: err.message } };
+    }
   };
 
   const value = {
@@ -150,6 +253,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     signIn,
     signUp,
+    signInWithGoogle,
     signOut,
     isAuthenticated: !!user,
     isAdmin: userRole === 'admin',
@@ -158,6 +262,8 @@ export const AuthProvider = ({ children }) => {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+
+
 
 
 

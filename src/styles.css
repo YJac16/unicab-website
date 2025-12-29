@@ -1457,3 +1457,10 @@ textarea:focus-visible {
     padding: 1.5rem;
   }
 }
+
+/* Spinner animation for loading states */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

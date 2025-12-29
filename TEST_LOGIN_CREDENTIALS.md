@@ -179,3 +179,5 @@ ON CONFLICT (email) DO UPDATE SET
 - [ ] Member login works → redirects to member dashboard
 - [ ] Profile pages accessible from dropdown
 - [ ] Profile editing works (with API connected)
+
+

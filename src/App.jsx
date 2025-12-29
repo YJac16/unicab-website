@@ -1,6 +1,8 @@
 import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { AdminRouteGuard } from "./components/AdminRouteGuard";
+import { DriverRouteGuard } from "./components/DriverRouteGuard";
 import Home from "./pages/Home";
 import Tours from "./pages/Tours";
 import TourDetail from "./pages/TourDetail";
@@ -29,6 +31,12 @@ import Subscriptions from "./pages/Subscriptions";
 import AdminProfile from "./pages/AdminProfile";
 import DriverProfile from "./pages/DriverProfile";
 import MemberProfile from "./pages/MemberProfile";
+import AdminReviewModeration from "./pages/AdminReviewModeration";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import CookiePolicy from "./pages/CookiePolicy";
+import AuthCallback from "./pages/AuthCallback";
+import Unauthorized from "./pages/Unauthorized";
+import CookieConsent from "./components/CookieConsent";
 import "./styles.css";
 
 function App() {
@@ -68,17 +76,17 @@ function App() {
         <Route 
           path="/admin/profile" 
           element={
-            <ProtectedRoute requiredRole="admin">
+            <AdminRouteGuard>
               <AdminProfile />
-            </ProtectedRoute>
+            </AdminRouteGuard>
           } 
         />
         <Route 
           path="/driver/profile" 
           element={
-            <ProtectedRoute requiredRole="driver">
+            <DriverRouteGuard>
               <DriverProfile />
-            </ProtectedRoute>
+            </DriverRouteGuard>
           } 
         />
         <Route 
@@ -92,28 +100,41 @@ function App() {
         <Route 
           path="/driver/dashboard" 
           element={
-            <ProtectedRoute requiredRole="driver">
+            <DriverRouteGuard>
               <DriverDashboard />
-            </ProtectedRoute>
+            </DriverRouteGuard>
           } 
         />
         <Route 
           path="/admin/dashboard" 
           element={
-            <ProtectedRoute requiredRole="admin">
+            <AdminRouteGuard>
               <AdminDashboard />
-            </ProtectedRoute>
+            </AdminRouteGuard>
           } 
         />
         <Route 
           path="/admin" 
           element={
-            <ProtectedRoute requiredRole="admin">
+            <AdminRouteGuard>
               <AdminDashboard />
-            </ProtectedRoute>
+            </AdminRouteGuard>
           } 
         />
+        <Route 
+          path="/admin/reviews" 
+          element={
+            <AdminRouteGuard>
+              <AdminReviewModeration />
+            </AdminRouteGuard>
+          } 
+        />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/cookie-policy" element={<CookiePolicy />} />
+        <Route path="/unauthorized" element={<Unauthorized />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
       </Routes>
+      <CookieConsent />
     </BrowserRouter>
   );
 }

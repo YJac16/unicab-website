@@ -218,3 +218,5 @@ Minimum required:
 - Admin routes are accessible without auth (add auth before production)
 - System works with fallbacks if database not configured
 - Double-booking is prevented at database level (UNIQUE constraint)
+
+

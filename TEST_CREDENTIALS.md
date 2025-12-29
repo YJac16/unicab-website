@@ -47,3 +47,5 @@ Or use Node.js directly:
 ```bash
 node -e "const bcrypt = require('bcrypt'); bcrypt.hash('YourPassword', 10).then(h => console.log(h));"
 ```
+
+

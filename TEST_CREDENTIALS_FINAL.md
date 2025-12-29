@@ -82,3 +82,5 @@ Just execute this file in your database (Supabase SQL Editor, pgAdmin, etc.)
 - `QUICK_TEST_CREDENTIALS.md` - Quick reference
 
 All credentials are ready to use! Just run the SQL file in your database.
+
+

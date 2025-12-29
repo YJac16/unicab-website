@@ -164,3 +164,5 @@ All profile forms include:
 - Form validation happens client-side before submission
 - API endpoints need to be connected for actual profile updates
 - Profile pages are mobile-responsive
+
+
