@@ -68,6 +68,23 @@ function Membership() {
                   onClick={() => {
                     setNavOpen(false);
                     setTimeout(() => {
+                      const aboutSection = document.getElementById('about');
+                      if (aboutSection) {
+                        aboutSection.scrollIntoView({ behavior: 'smooth' });
+                      }
+                    }, 100);
+                  }}
+                >
+                  About Us
+                </Link>
+              </li>
+              <li>
+                <Link 
+                  className="link-button" 
+                  to="/"
+                  onClick={() => {
+                    setNavOpen(false);
+                    setTimeout(() => {
                       const contactSection = document.getElementById('contact');
                       if (contactSection) {
                         contactSection.scrollIntoView({ behavior: 'smooth' });

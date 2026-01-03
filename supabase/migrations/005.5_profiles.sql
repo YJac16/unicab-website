@@ -97,3 +97,8 @@ on conflict (id) do update set role = 'admin';
 -- Verify
 select id, role from public.profiles;
 
+
+
+
+
+

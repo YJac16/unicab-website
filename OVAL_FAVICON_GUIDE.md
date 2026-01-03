@@ -203,3 +203,8 @@ Once you create the new `favicon.ico`, it will automatically be used.
 - **ICO converter:** https://convertio.co/png-ico/
 - **ImageMagick:** https://imagemagick.org/ (for true .ico format)
 
+
+
+
+
+

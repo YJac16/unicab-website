@@ -10,13 +10,13 @@ const formatStars = (rating) => {
 };
 
 const navItems = [
-  { id: "home", label: "Home" },
   { id: "tours", label: "Tours", path: "/tours" },
   { id: "vehicles", label: "Vehicles", path: "/vehicles" },
   { id: "drivers", label: "Drivers", path: "/drivers" },
   { id: "reviews", label: "Reviews", path: "/reviews" },
   { id: "membership", label: "Membership", path: "/membership" },
-  { id: "contact", label: "Contact" }
+  { id: "about", label: "About", path: null },
+  { id: "contact", label: "Contact", path: null }
 ];
 
 function Home() {
@@ -155,7 +155,7 @@ function Home() {
                 </li>
               ))}
               <li className="cta-nav">
-                <a className="btn btn-primary btn-compact" href="#contact" onClick={() => { scrollToSection("contact"); setNavOpen(false); }}>
+                <a className="btn btn-primary" href="#contact" onClick={() => { scrollToSection("contact"); setNavOpen(false); }}>
                   Book Now
                 </a>
               </li>
@@ -174,7 +174,8 @@ function Home() {
               <span className="hero-title-accent">In Premium Style</span>
             </h1>
             <p className="hero-subtitle">
-              Private tours, airport transfers, and customized experiences with licensed guides.
+              <span className="desktop-only">Private tours, airport transfers, and customized experiences with licensed guides.</span>
+              <span className="mobile-only">Private tours, transfers & experiences</span>
             </p>
             <div className="hero-actions">
               <button className="btn btn-primary" onClick={() => scrollToSection("tours")}>
@@ -201,38 +202,34 @@ function Home() {
           </div>
         </section>
 
-        <section id="about" className="section about slim">
-          <div className="container section-inner center">
-            <p className="eyebrow">About Us</p>
-            <h2>Quietly Moving Cape Town's Guests Since 1989</h2>
-            <div className="section-intro max-720" style={{ textAlign: "left", maxWidth: "900px" }}>
-              <p>
-                Since its launch in 1989, the company has grown into one of the most recognizable 'people mover' brands
-                in and around Cape Town.
-              </p>
-              <p>
-                From initially servicing the iconic Mount Nelson Hotel with a fleet of chauffeur driven luxury vehicles,
-                UNICAB also became the first external operator of The Mount Nelson's Travel Desk. To date, we have
-                exclusive service level agreements with more than 90% of Cape Town's Hotel & Guest House infrastructure
-                along the Atlantic Seaboard, Cape Town's Waterfront hub, the inner city & the southern suburbs.
-              </p>
-              <p>
-                Our expanding clientele base as well as our service diversification necessitated a rapid increase in
-                our fleet of vehicles.
-              </p>
-              <p>
-                Rapid expansion & diversification also necessitated increasing investments in our fleet management
-                systems. To better serve our clients and streamline operations, UNICAB is developing its own mobile
-                application, which will be available soon.
-              </p>
-              <p>
-                With our advanced Vehicle Management Systems and commitment to innovation, UNICAB has managed to remain
-                a market leader in safe and reliable transport solutions to the tourist, leisure and corporate markets.
-              </p>
-              <p style={{ marginTop: "1.5rem", fontStyle: "italic", color: "var(--text-soft)" }}>
-                We no longer rely on old contracts but have built new relationships and pride ourselves on professional
-                conduct and service excellence.
-              </p>
+        {/* Quick Navigation - What We Do */}
+        <section className="quick-nav-section">
+          <div className="container">
+            <div className="quick-nav-grid">
+              <Link to="/tours" className="quick-nav-card" onClick={() => window.scrollTo(0, 0)}>
+                <div className="quick-nav-icon">🗺️</div>
+                <h3>Tours</h3>
+                <p className="mobile-only">Explore</p>
+                <p className="desktop-only">Curated experiences</p>
+              </Link>
+              <Link to="/vehicles" className="quick-nav-card" onClick={() => window.scrollTo(0, 0)}>
+                <div className="quick-nav-icon">🚗</div>
+                <h3>Fleet</h3>
+                <p className="mobile-only">Vehicles</p>
+                <p className="desktop-only">Premium vehicles</p>
+              </Link>
+              <Link to="/drivers" className="quick-nav-card" onClick={() => window.scrollTo(0, 0)}>
+                <div className="quick-nav-icon">👨‍✈️</div>
+                <h3>Drivers</h3>
+                <p className="mobile-only">Experts</p>
+                <p className="desktop-only">Local knowledge</p>
+              </Link>
+              <a href="#contact" className="quick-nav-card" onClick={(e) => { e.preventDefault(); scrollToSection("contact"); }}>
+                <div className="quick-nav-icon">📞</div>
+                <h3>Book</h3>
+                <p className="mobile-only">Now</p>
+                <p className="desktop-only">Get started</p>
+              </a>
             </div>
           </div>
         </section>
@@ -243,8 +240,9 @@ function Home() {
               <p className="eyebrow">Why UNICAB</p>
               <h2>Your Trusted Travel Partner</h2>
               <p className="section-intro max-720">
-                Experience the difference of premium service with licensed guides, fully insured vehicles, and
-                punctuality you can count on.
+                <span className="desktop-only">Experience the difference of premium service with licensed guides, fully insured vehicles, and
+                punctuality you can count on.</span>
+                <span className="mobile-only">Premium service with licensed guides, fully insured vehicles, and punctuality.</span>
               </p>
             </header>
             <div className="why-grid">
@@ -273,8 +271,9 @@ function Home() {
               <p className="eyebrow">Signature Experiences</p>
               <h2>Curated Private Tours</h2>
               <p className="section-intro max-720">
-                Scenic drives, iconic landmarks, and bespoke itineraries designed for families, couples, and corporate
-                travellers.
+                <span className="desktop-only">Scenic drives, iconic landmarks, and bespoke itineraries designed for families, couples, and corporate
+                travellers.</span>
+                <span className="mobile-only">Scenic drives, iconic landmarks, and bespoke itineraries.</span>
               </p>
             </header>
             <div className="cards-grid" aria-live="polite">
@@ -505,6 +504,94 @@ function Home() {
                   </div>
                 </article>
               ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="safety" className="section safety-emphasis">
+          <div className="container section-inner">
+            <header className="section-header center">
+              <p className="eyebrow">Your Safety is Our Priority</p>
+              <h2>Safe Travels with UNICAB</h2>
+              <div className="section-intro max-720">
+                <p className="desktop-only" style={{ fontSize: "1.1rem", lineHeight: "1.8", marginBottom: "1rem" }}>
+                  <strong>UNICAB ensures the safety of all clients</strong> with road-worthy vehicles that meet the highest standards of maintenance and inspection. Our entire fleet undergoes regular safety checks to guarantee reliability and peace of mind on every journey.
+                </p>
+                <p className="mobile-only" style={{ fontSize: "1rem", lineHeight: "1.7", marginBottom: "1rem" }}>
+                  <strong>UNICAB ensures the safety of all clients</strong> with road-worthy vehicles and regular safety inspections.
+                </p>
+                <p className="desktop-only" style={{ fontSize: "1.1rem", lineHeight: "1.8" }}>
+                  <strong>South Africa is a safe place to visit</strong> in the hands of our expert drivers who know the city inside and out. With years of local experience, our professional chauffeurs navigate Cape Town's routes with confidence, ensuring you reach your destination safely and comfortably.
+                </p>
+                <p className="mobile-only" style={{ fontSize: "1rem", lineHeight: "1.7" }}>
+                  <strong>South Africa is a safe place to visit</strong> with our expert drivers who know Cape Town inside and out.
+                </p>
+              </div>
+            </header>
+            <div className="why-grid" style={{ marginTop: "2.5rem" }}>
+              <div className="why-card">
+                <div className="why-icon">🛡️</div>
+                <h3>Road-Worthy Vehicles</h3>
+                <p>All vehicles undergo rigorous safety inspections and maintenance to ensure they meet the highest road safety standards.</p>
+              </div>
+              <div className="why-card">
+                <div className="why-icon">🚗</div>
+                <h3>Expert Local Drivers</h3>
+                <p>Our experienced drivers know Cape Town's streets, routes, and traffic patterns, ensuring safe and efficient travel.</p>
+              </div>
+              <div className="why-card">
+                <div className="why-icon">✅</div>
+                <h3>Fully Licensed & Insured</h3>
+                <p>Complete peace of mind with comprehensive insurance coverage and all necessary licenses and certifications.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="about" className="section about slim">
+          <div className="container section-inner center">
+            <p className="eyebrow">About Us</p>
+            <h2>Quietly Moving Cape Town's Guests Since 1989</h2>
+            <div className="section-intro max-720" style={{ textAlign: "left", maxWidth: "900px" }}>
+              <p className="desktop-only">
+                Since its launch in 1989, the company has grown into one of the most recognizable 'people mover' brands
+                in and around Cape Town.
+              </p>
+              <p className="mobile-only">
+                Since 1989, we've grown into one of Cape Town's most recognizable transport brands.
+              </p>
+              <p className="desktop-only">
+                From initially servicing the iconic Mount Nelson Hotel with a fleet of chauffeur driven luxury vehicles,
+                UNICAB also became the first external operator of The Mount Nelson's Travel Desk. To date, we have
+                exclusive service level agreements with more than 90% of Cape Town's Hotel & Guest House infrastructure
+                along the Atlantic Seaboard, Cape Town's Waterfront hub, the inner city & the southern suburbs.
+              </p>
+              <p className="mobile-only">
+                We service over 90% of Cape Town's hotels and guest houses with our luxury fleet.
+              </p>
+              <p className="desktop-only">
+                Our expanding clientele base as well as our service diversification necessitated a rapid increase in
+                our fleet of vehicles.
+              </p>
+              <p className="desktop-only">
+                Rapid expansion & diversification also necessitated increasing investments in our fleet management
+                systems. To better serve our clients and streamline operations, UNICAB is developing its own mobile
+                application, which will be available soon.
+              </p>
+              <p className="desktop-only">
+                With our advanced Vehicle Management Systems and commitment to innovation, UNICAB has managed to remain
+                a market leader in safe and reliable transport solutions to the tourist, leisure and corporate markets.
+              </p>
+              <p className="mobile-only">
+                A market leader in safe and reliable transport solutions with advanced fleet management systems.
+              </p>
+              <p className="desktop-only" style={{ marginTop: "1.5rem", fontStyle: "italic", color: "var(--text-soft)" }}>
+                We no longer rely on old contracts but have built new relationships and pride ourselves on professional
+                conduct and service excellence.
+              </p>
+              <p className="mobile-only" style={{ marginTop: "1rem", fontStyle: "italic", color: "var(--text-soft)" }}>
+                Professional conduct and service excellence.
+              </p>
             </div>
           </div>
         </section>

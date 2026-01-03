@@ -36,3 +36,8 @@ on public.profiles
 for select
 using (id = auth.uid());
 
+
+
+
+
+

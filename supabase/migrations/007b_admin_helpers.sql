@@ -20,3 +20,8 @@ on public.profiles
 for update
 using (public.is_admin());
 
+
+
+
+
+

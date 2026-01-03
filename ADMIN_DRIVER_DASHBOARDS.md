@@ -235,3 +235,8 @@ curl http://localhost:3000/api/admin/bookings \
 - JWT tokens expire after 7 days
 
 
+
+
+
+
+
