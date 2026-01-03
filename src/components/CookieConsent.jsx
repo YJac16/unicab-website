@@ -10,18 +10,34 @@ function CookieConsent() {
   });
 
   useEffect(() => {
-    // Check if user has already made a choice
-    const consent = localStorage.getItem('cookie_consent');
-    if (!consent) {
-      setShowBanner(true);
-    } else {
-      const savedPrefs = JSON.parse(consent);
-      setPreferences(savedPrefs);
-      // Load analytics if opted in
-      if (savedPrefs.analytics) {
-        loadAnalytics();
+    // Small delay to ensure DOM is ready and avoid flash
+    const timer = setTimeout(() => {
+      try {
+        // Check if user has already made a choice
+        const consent = localStorage.getItem('cookie_consent');
+        if (!consent) {
+          setShowBanner(true);
+        } else {
+          const savedPrefs = JSON.parse(consent);
+          if (savedPrefs && typeof savedPrefs === 'object') {
+            setPreferences(savedPrefs);
+            // Load analytics if opted in
+            if (savedPrefs.analytics) {
+              loadAnalytics();
+            }
+          } else {
+            // Invalid consent data, show banner again
+            setShowBanner(true);
+          }
+        }
+      } catch (error) {
+        // If parsing fails, show banner again
+        console.error('Error reading cookie consent:', error);
+        setShowBanner(true);
       }
-    }
+    }, 300);
+    
+    return () => clearTimeout(timer);
   }, []);
 
   const loadAnalytics = () => {
@@ -75,16 +91,18 @@ function CookieConsent() {
 
   return (
     <div
+      className="cookie-consent-banner"
       style={{
         position: 'fixed',
         bottom: 0,
         left: 0,
         right: 0,
-        background: 'white',
-        borderTop: '2px solid var(--border-soft)',
-        boxShadow: '0 -4px 12px rgba(0, 0, 0, 0.1)',
+        background: '#ffffff',
+        borderTop: '2px solid var(--accent-gold)',
+        boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.15)',
         zIndex: 10000,
         padding: '1.5rem',
+        animation: 'slideUp 0.3s ease-out',
       }}
     >
       <div className="container" style={{ maxWidth: '1200px', margin: '0 auto' }}>
@@ -95,36 +113,52 @@ function CookieConsent() {
                 We use essential cookies to make our website function and optional analytics cookies to improve our services.
               </p>
               <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-soft)' }}>
-                By continuing to use this site, you consent to our use of cookies. 
-                <Link to="/cookie-policy" style={{ color: 'var(--accent-gold)', marginLeft: '0.5rem' }}>
-                  Learn more
+                By continuing to use this site, you consent to our use of cookies.{' '}
+                <Link to="/cookie-policy" style={{ color: 'var(--accent-gold)', textDecoration: 'underline' }}>
+                  Cookie Policy
+                </Link>
+                {' • '}
+                <Link to="/privacy-policy" style={{ color: 'var(--accent-gold)', textDecoration: 'underline' }}>
+                  Privacy Policy
                 </Link>
               </p>
             </div>
             <div style={{ 
               display: 'flex', 
-              gap: '1rem', 
+              gap: '0.75rem', 
               flexWrap: 'wrap',
               alignItems: 'center'
             }}>
               <button
                 onClick={handleAccept}
-                className="btn btn-primary btn-compact"
-                style={{ minWidth: '100px' }}
+                className="btn btn-primary"
+                style={{ 
+                  minWidth: '100px',
+                  padding: '0.65rem 1.4rem',
+                  fontSize: '0.85rem'
+                }}
               >
-                Accept
+                Accept All
               </button>
               <button
                 onClick={handleReject}
-                className="btn btn-outline btn-compact"
-                style={{ minWidth: '100px' }}
+                className="btn btn-outline"
+                style={{ 
+                  minWidth: '100px',
+                  padding: '0.65rem 1.4rem',
+                  fontSize: '0.85rem'
+                }}
               >
-                Reject
+                Reject All
               </button>
               <button
                 onClick={() => setShowSettings(true)}
-                className="btn btn-outline btn-compact"
-                style={{ minWidth: '100px' }}
+                className="btn btn-outline"
+                style={{ 
+                  minWidth: '100px',
+                  padding: '0.65rem 1.4rem',
+                  fontSize: '0.85rem'
+                }}
               >
                 Settings
               </button>
