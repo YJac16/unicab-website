@@ -1,5 +1,5 @@
 // Authentication Middleware
-// JWT-based authentication with role-based access control
+// Supports both JWT and Supabase Auth tokens
 
 const jwt = require('jsonwebtoken');
 
@@ -24,6 +24,53 @@ const verifyToken = (token) => {
   }
 };
 
+// Verify Supabase token and get user info
+const verifySupabaseToken = async (token) => {
+  try {
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return null;
+    }
+
+    const { createClient } = require('@supabase/supabase-js');
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
+
+    // Verify the token and get user
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+
+    if (error || !user) {
+      return null;
+    }
+
+    // Get user role from profiles table
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle(); // Use maybeSingle() to handle missing profiles gracefully
+
+    // If profile doesn't exist, default to customer role
+    const role = profile?.role?.toLowerCase() || 'customer';
+
+    return {
+      id: user.id,
+      email: user.email,
+      role,
+      name: user.user_metadata?.full_name || null
+    };
+  } catch (error) {
+    console.error('Supabase token verification error:', error);
+    return null;
+  }
+};
+
 // Middleware: Require authentication
 const requireAuth = async (req, res, next) => {
   try {
@@ -37,9 +84,24 @@ const requireAuth = async (req, res, next) => {
       });
     }
 
-    const decoded = verifyToken(token);
-    
-    if (!decoded) {
+    // Try JWT token first (legacy support)
+    let decoded = verifyToken(token);
+    let userInfo = null;
+
+    if (decoded) {
+      // JWT token - legacy format
+      userInfo = {
+        id: decoded.userId || decoded.id,
+        email: decoded.email,
+        role: decoded.role?.toLowerCase() || 'customer',
+        guideId: decoded.guideId
+      };
+    } else {
+      // Try Supabase token
+      userInfo = await verifySupabaseToken(token);
+    }
+
+    if (!userInfo) {
       return res.status(401).json({
         success: false,
         error: 'Invalid token',
@@ -48,12 +110,7 @@ const requireAuth = async (req, res, next) => {
     }
 
     // Attach user info to request
-    req.user = {
-      id: decoded.userId,
-      email: decoded.email,
-      role: decoded.role,
-      guideId: decoded.guideId
-    };
+    req.user = userInfo;
 
     next();
   } catch (error) {
@@ -75,11 +132,13 @@ const requireAdmin = (req, res, next) => {
     });
   }
 
-  if (req.user.role !== 'ADMIN') {
+  // Support both uppercase and lowercase role names
+  const role = req.user.role?.toLowerCase();
+  if (role !== 'admin') {
     return res.status(403).json({
       success: false,
       error: 'Admin access required',
-      message: 'This endpoint requires ADMIN role'
+      message: 'This endpoint requires admin role'
     });
   }
 
@@ -95,11 +154,13 @@ const requireDriver = (req, res, next) => {
     });
   }
 
-  if (req.user.role !== 'DRIVER') {
+  // Support both uppercase and lowercase role names
+  const role = req.user.role?.toLowerCase();
+  if (role !== 'driver') {
     return res.status(403).json({
       success: false,
       error: 'Driver access required',
-      message: 'This endpoint requires DRIVER role'
+      message: 'This endpoint requires driver role'
     });
   }
 
@@ -115,11 +176,13 @@ const requireMember = (req, res, next) => {
     });
   }
 
-  if (req.user.role !== 'MEMBER') {
+  // Support both uppercase and lowercase role names
+  const role = req.user.role?.toLowerCase();
+  if (role !== 'member' && role !== 'customer') {
     return res.status(403).json({
       success: false,
       error: 'Member access required',
-      message: 'This endpoint requires MEMBER role'
+      message: 'This endpoint requires member or customer role'
     });
   }
 

@@ -193,7 +193,7 @@ function MemberProfile() {
               }}>
                 <form onSubmit={handleSubmit}>
                   <div style={{ marginBottom: "1.5rem" }}>
-                    <label style={{
+                    <label htmlFor="member-name" style={{
                       display: "block",
                       marginBottom: "0.5rem",
                       fontSize: "0.9rem",
@@ -203,6 +203,9 @@ function MemberProfile() {
                     </label>
                     <input
                       type="text"
+                      id="member-name"
+                      name="member-name"
+                      autoComplete="name"
                       value={formData.name}
                       onChange={(e) => {
                         setFormData({ ...formData, name: e.target.value });
@@ -225,7 +228,7 @@ function MemberProfile() {
                   </div>
 
                   <div style={{ marginBottom: "1.5rem" }}>
-                    <label style={{
+                    <label htmlFor="member-email" style={{
                       display: "block",
                       marginBottom: "0.5rem",
                       fontSize: "0.9rem",
@@ -235,6 +238,9 @@ function MemberProfile() {
                     </label>
                     <input
                       type="email"
+                      id="member-email"
+                      name="member-email"
+                      autoComplete="email"
                       value={formData.email}
                       onChange={(e) => {
                         setFormData({ ...formData, email: e.target.value });
@@ -257,7 +263,7 @@ function MemberProfile() {
                   </div>
 
                   <div style={{ marginBottom: "1.5rem" }}>
-                    <label style={{
+                    <label htmlFor="member-phone" style={{
                       display: "block",
                       marginBottom: "0.5rem",
                       fontSize: "0.9rem",
@@ -267,6 +273,9 @@ function MemberProfile() {
                     </label>
                     <input
                       type="tel"
+                      id="member-phone"
+                      name="member-phone"
+                      autoComplete="tel"
                       value={formData.phone}
                       onChange={(e) => {
                         setFormData({ ...formData, phone: e.target.value });

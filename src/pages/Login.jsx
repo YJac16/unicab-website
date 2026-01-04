@@ -222,7 +222,7 @@ function Login() {
 
                 <form onSubmit={handleSubmit}>
                   <div style={{ marginBottom: "1.5rem" }}>
-                    <label style={{ 
+                    <label htmlFor="login-email" style={{ 
                       display: "block", 
                       marginBottom: "0.5rem", 
                       fontSize: "0.9rem", 
@@ -232,6 +232,9 @@ function Login() {
                     </label>
                     <input
                       type="email"
+                      id="login-email"
+                      name="login-email"
+                      autoComplete="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
@@ -246,7 +249,7 @@ function Login() {
                   </div>
 
                   <div style={{ marginBottom: "1.5rem" }}>
-                    <label style={{ 
+                    <label htmlFor="login-password" style={{ 
                       display: "block", 
                       marginBottom: "0.5rem", 
                       fontSize: "0.9rem", 
@@ -255,6 +258,9 @@ function Login() {
                       Password
                     </label>
                     <PasswordInput
+                      id="login-password"
+                      name="login-password"
+                      autoComplete="current-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required

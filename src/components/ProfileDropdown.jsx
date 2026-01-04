@@ -327,79 +327,84 @@ function ProfileDropdown() {
               </div>
             </Link>
 
-            <Link
-              to="/payments"
-              onClick={() => setIsOpen(false)}
-              style={{
-                display: 'block',
-                padding: '0.75rem 1rem',
-                textDecoration: 'none',
-                color: 'var(--text-main)',
-                fontSize: '0.9rem',
-                borderRadius: '8px',
-                transition: 'background var(--transition-fast)'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--bg-soft)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+            {/* Only show Payments and Subscriptions for members/customers */}
+            {(userRole === 'member' || userRole === 'customer') && (
+              <>
+                <Link
+                  to="/payments"
+                  onClick={() => setIsOpen(false)}
+                  style={{
+                    display: 'block',
+                    padding: '0.75rem 1rem',
+                    textDecoration: 'none',
+                    color: 'var(--text-main)',
+                    fontSize: '0.9rem',
+                    borderRadius: '8px',
+                    transition: 'background var(--transition-fast)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'var(--bg-soft)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                  }}
                 >
-                  <line x1="12" y1="1" x2="12" y2="23"></line>
-                  <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-                </svg>
-                Payments
-              </div>
-            </Link>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <line x1="12" y1="1" x2="12" y2="23"></line>
+                      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                    </svg>
+                    Payments
+                  </div>
+                </Link>
 
-            <Link
-              to="/subscriptions"
-              onClick={() => setIsOpen(false)}
-              style={{
-                display: 'block',
-                padding: '0.75rem 1rem',
-                textDecoration: 'none',
-                color: 'var(--text-main)',
-                fontSize: '0.9rem',
-                borderRadius: '8px',
-                transition: 'background var(--transition-fast)'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--bg-soft)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+                <Link
+                  to="/subscriptions"
+                  onClick={() => setIsOpen(false)}
+                  style={{
+                    display: 'block',
+                    padding: '0.75rem 1rem',
+                    textDecoration: 'none',
+                    color: 'var(--text-main)',
+                    fontSize: '0.9rem',
+                    borderRadius: '8px',
+                    transition: 'background var(--transition-fast)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'var(--bg-soft)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                  }}
                 >
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-                Subscriptions
-              </div>
-            </Link>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                      <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                    Subscriptions
+                  </div>
+                </Link>
+              </>
+            )}
 
             <div
               style={{

@@ -219,7 +219,7 @@ function MemberLogin() {
 
                 <form onSubmit={handleSubmit}>
                   <div style={{ marginBottom: "1.5rem" }}>
-                    <label style={{ 
+                    <label htmlFor="member-login-email" style={{ 
                       display: "block", 
                       marginBottom: "0.5rem", 
                       fontSize: "0.9rem", 
@@ -229,6 +229,9 @@ function MemberLogin() {
                     </label>
                     <input
                       type="email"
+                      id="member-login-email"
+                      name="member-login-email"
+                      autoComplete="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
@@ -243,7 +246,7 @@ function MemberLogin() {
                   </div>
 
                   <div style={{ marginBottom: "1.5rem" }}>
-                    <label style={{ 
+                    <label htmlFor="member-login-password" style={{ 
                       display: "block", 
                       marginBottom: "0.5rem", 
                       fontSize: "0.9rem", 
@@ -252,6 +255,9 @@ function MemberLogin() {
                       Password
                     </label>
                     <PasswordInput
+                      id="member-login-password"
+                      name="member-login-password"
+                      autoComplete="current-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required

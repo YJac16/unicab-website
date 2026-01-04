@@ -139,11 +139,14 @@ function AddDriverForm({ onDriverAdded }) {
             marginBottom: "1rem" 
           }}>
             <div>
-              <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
+              <label htmlFor="driver-name" style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
                 Driver Name *
               </label>
               <input
                 type="text"
+                id="driver-name"
+                name="driver-name"
+                autoComplete="name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
@@ -158,11 +161,14 @@ function AddDriverForm({ onDriverAdded }) {
             </div>
 
             <div>
-              <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
+              <label htmlFor="driver-email" style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
                 Email *
               </label>
               <input
                 type="email"
+                id="driver-email"
+                name="driver-email"
+                autoComplete="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 required
@@ -177,11 +183,14 @@ function AddDriverForm({ onDriverAdded }) {
             </div>
 
             <div>
-              <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
+              <label htmlFor="driver-phone" style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
                 Phone
               </label>
               <input
                 type="tel"
+                id="driver-phone"
+                name="driver-phone"
+                autoComplete="tel"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 style={{
@@ -195,11 +204,14 @@ function AddDriverForm({ onDriverAdded }) {
             </div>
 
             <div>
-              <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
+              <label htmlFor="driver-license" style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
                 License Number
               </label>
               <input
                 type="text"
+                id="driver-license"
+                name="driver-license"
+                autoComplete="off"
                 value={formData.license_number}
                 onChange={(e) => setFormData({ ...formData, license_number: e.target.value })}
                 style={{
@@ -216,22 +228,18 @@ function AddDriverForm({ onDriverAdded }) {
           <div style={{ 
             marginBottom: "1rem", 
             padding: "1rem", 
-            background: "#fff3cd", 
+            background: "#d1ecf1", 
             borderRadius: "8px",
-            border: "1px solid #ffc107",
+            border: "1px solid #0c5460",
             fontSize: "0.9rem"
           }}>
-            <div style={{ fontWeight: "600", marginBottom: "0.5rem", color: "#856404" }}>
-              ℹ️ Important: User Account Required
+            <div style={{ fontWeight: "600", marginBottom: "0.5rem", color: "#0c5460" }}>
+              ℹ️ How It Works
             </div>
-            <div style={{ color: "#856404" }}>
-              The user must already exist in Supabase Authentication before adding them as a driver.
+            <div style={{ color: "#0c5460" }}>
+              <strong>For New Drivers:</strong> Leave password field empty to send an email invite, or provide a password for immediate access.
               <br />
-              <strong>Steps:</strong>
-              <ol style={{ marginTop: "0.5rem", paddingLeft: "1.5rem" }}>
-                <li>Create the user account in Supabase Dashboard → Authentication → Users</li>
-                <li>Then use this form to link them as a driver</li>
-              </ol>
+              <strong>For Existing Users:</strong> If the user already exists in the system, this form will automatically link them as a driver (no password needed).
             </div>
           </div>
 
@@ -279,11 +287,13 @@ function DriverAvailabilityManager({ driver, unavailability, onBlockDate, onUnbl
       {showBlockForm && (
         <form onSubmit={handleBlock} style={{ marginBottom: "1.5rem", padding: "1rem", background: "var(--bg-soft)", borderRadius: "8px" }}>
           <div style={{ marginBottom: "1rem" }}>
-            <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
+            <label htmlFor={`block-date-${driver.id}`} style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
               Date
             </label>
             <input
               type="date"
+              id={`block-date-${driver.id}`}
+              name={`block-date-${driver.id}`}
               value={blockDate}
               onChange={(e) => setBlockDate(e.target.value)}
               min={new Date().toISOString().split("T")[0]}
@@ -297,11 +307,13 @@ function DriverAvailabilityManager({ driver, unavailability, onBlockDate, onUnbl
             />
           </div>
           <div style={{ marginBottom: "1rem" }}>
-            <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
+            <label htmlFor={`block-reason-${driver.id}`} style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
               Reason (optional)
             </label>
             <input
               type="text"
+              id={`block-reason-${driver.id}`}
+              name={`block-reason-${driver.id}`}
               value={blockReason}
               onChange={(e) => setBlockReason(e.target.value)}
               placeholder="e.g., Vehicle maintenance, Vacation"

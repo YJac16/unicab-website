@@ -11,7 +11,8 @@ function PasswordInput({
   onFocus,
   onBlur,
   id,
-  name
+  name,
+  autoComplete
 }) {
   const [showPassword, setShowPassword] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -43,6 +44,7 @@ function PasswordInput({
         onBlur={onBlur}
         id={id}
         name={name}
+        autoComplete={autoComplete || (name?.includes('current') ? 'current-password' : name?.includes('new') || name?.includes('confirm') ? 'new-password' : 'password')}
       />
       <button
         type="button"

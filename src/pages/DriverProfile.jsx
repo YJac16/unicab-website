@@ -3,11 +3,17 @@ import { Link, useNavigate } from 'react-router-dom';
 import ProfileDropdown from '../components/ProfileDropdown';
 import BackToTop from '../components/BackToTop';
 import PasswordInput from '../components/PasswordInput';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 
 function DriverProfile() {
   const navigate = useNavigate();
+  const { user: authUser, userRole, driverProfile } = useAuth();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [profilePicture, setProfilePicture] = useState(null);
+  const [profilePictureUrl, setProfilePictureUrl] = useState(null);
+  const [uploadingPicture, setUploadingPicture] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -21,42 +27,131 @@ function DriverProfile() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    // Get user info from token
-    const token = localStorage.getItem('auth_token');
-    if (!token) {
-      navigate('/login');
-      return;
-    }
+    const loadUserData = async () => {
+      if (!authUser) {
+        navigate('/login');
+        return;
+      }
 
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      if (payload.role !== 'DRIVER') {
+      if (userRole !== 'driver') {
         navigate('/driver/dashboard');
         return;
       }
-      
-      setUser({
-        name: payload.name || payload.email?.split('@')[0] || 'Driver',
-        email: payload.email,
-        role: payload.role
-      });
-      
-      setFormData({
-        name: payload.name || payload.email?.split('@')[0] || 'Driver',
-        email: payload.email,
-        phone: '', // TODO: Get from driver profile
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: ''
-      });
-    } catch (error) {
-      console.error('Error decoding token:', error);
-      localStorage.removeItem('auth_token');
-      navigate('/login');
-    } finally {
-      setLoading(false);
+
+      try {
+        // Get user profile from profiles table
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', authUser.id)
+          .single();
+
+        if (profileError && profileError.code !== 'PGRST116') {
+          console.error('Error fetching profile:', profileError);
+        }
+
+        const name = profile?.full_name || driverProfile?.name || authUser.user_metadata?.full_name || authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Driver';
+        const email = authUser.email || '';
+        const phone = driverProfile?.phone || profile?.phone || '';
+        const avatarUrl = profile?.avatar_url || authUser.user_metadata?.avatar_url;
+
+        setUser({
+          id: authUser.id,
+          name,
+          email,
+          phone,
+          role: userRole,
+          avatarUrl
+        });
+
+        setFormData({
+          name,
+          email,
+          phone,
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: ''
+        });
+
+        if (avatarUrl) {
+          setProfilePictureUrl(avatarUrl);
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUserData();
+  }, [authUser, userRole, driverProfile, navigate]);
+
+  const handlePictureChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setErrors({ picture: 'Please select an image file' });
+      return;
     }
-  }, [navigate]);
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setErrors({ picture: 'Image size must be less than 5MB' });
+      return;
+    }
+
+    setUploadingPicture(true);
+    setErrors({ ...errors, picture: null });
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${authUser.id}-${Date.now()}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      // Update profile with avatar URL
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', authUser.id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      // Update user metadata
+      await supabase.auth.updateUser({
+        data: { avatar_url: publicUrl }
+      });
+
+      setProfilePictureUrl(publicUrl);
+      setUser({ ...user, avatarUrl: publicUrl });
+      setSuccess('Profile picture updated successfully!');
+    } catch (error) {
+      console.error('Error uploading picture:', error);
+      setErrors({ picture: 'Failed to upload picture. Please try again.' });
+    } finally {
+      setUploadingPicture(false);
+    }
+  };
 
   const validate = () => {
     const newErrors = {};
@@ -97,8 +192,64 @@ function DriverProfile() {
     setSaving(true);
 
     try {
-      // TODO: Call API to update profile
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Update password if provided
+      if (formData.newPassword) {
+        // First verify current password by attempting to sign in
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: authUser.email,
+          password: formData.currentPassword
+        });
+
+        if (signInError) {
+          setErrors({ currentPassword: 'Current password is incorrect' });
+          setSaving(false);
+          return;
+        }
+
+        // Update password
+        const { error: passwordError } = await supabase.auth.updateUser({
+          password: formData.newPassword
+        });
+
+        if (passwordError) {
+          throw passwordError;
+        }
+      }
+
+      // Update profile information
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          full_name: formData.name,
+          email: formData.email,
+          phone: formData.phone || null
+        })
+        .eq('id', authUser.id);
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      // Update driver profile if phone changed
+      if (driverProfile && formData.phone !== driverProfile.phone) {
+        const { error: driverError } = await supabase
+          .from('drivers')
+          .update({ phone: formData.phone || null })
+          .eq('user_id', authUser.id);
+
+        if (driverError) {
+          console.error('Error updating driver profile:', driverError);
+        }
+      }
+
+      // Update user metadata
+      await supabase.auth.updateUser({
+        email: formData.email,
+        data: {
+          full_name: formData.name,
+          name: formData.name
+        }
+      });
 
       setSuccess('Profile updated successfully!');
       setFormData(prev => ({
@@ -108,13 +259,16 @@ function DriverProfile() {
         confirmPassword: ''
       }));
 
+      // Update user state
       setUser({
         ...user,
         name: formData.name,
-        email: formData.email
+        email: formData.email,
+        phone: formData.phone
       });
     } catch (error) {
-      setErrors({ submit: 'Failed to update profile. Please try again.' });
+      console.error('Error updating profile:', error);
+      setErrors({ submit: error.message || 'Failed to update profile. Please try again.' });
     } finally {
       setSaving(false);
     }
@@ -185,6 +339,72 @@ function DriverProfile() {
                 </div>
               )}
 
+              {/* Profile Picture Section */}
+              <div style={{
+                background: "white",
+                padding: "2rem",
+                borderRadius: "12px",
+                border: "1px solid var(--border-soft)",
+                marginBottom: "2rem"
+              }}>
+                <h2 style={{ fontSize: "1.2rem", marginBottom: "1rem" }}>Profile Picture</h2>
+                <div style={{ display: "flex", alignItems: "center", gap: "1.5rem", marginBottom: "1rem" }}>
+                  <div style={{
+                    width: "100px",
+                    height: "100px",
+                    borderRadius: "50%",
+                    overflow: "hidden",
+                    background: "var(--bg-soft)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    border: "2px solid var(--border-soft)"
+                  }}>
+                    {profilePictureUrl ? (
+                      <img 
+                        src={profilePictureUrl} 
+                        alt="Profile" 
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      />
+                    ) : (
+                      <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                      </svg>
+                    )}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePictureChange}
+                      disabled={uploadingPicture}
+                      style={{ display: "none" }}
+                      id="profile-picture-input"
+                    />
+                    <label
+                      htmlFor="profile-picture-input"
+                      className="btn btn-outline"
+                      style={{
+                        display: "inline-block",
+                        cursor: uploadingPicture ? "not-allowed" : "pointer",
+                        opacity: uploadingPicture ? 0.6 : 1
+                      }}
+                    >
+                      {uploadingPicture ? "Uploading..." : "Change Picture"}
+                    </label>
+                    {errors.picture && (
+                      <p style={{ color: "#e74c3c", fontSize: "0.85rem", marginTop: "0.5rem" }}>
+                        {errors.picture}
+                      </p>
+                    )}
+                    <p style={{ fontSize: "0.85rem", color: "var(--text-soft)", marginTop: "0.5rem" }}>
+                      JPG, PNG or GIF. Max size 5MB.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div style={{
                 background: "white",
                 padding: "2rem",
@@ -193,7 +413,7 @@ function DriverProfile() {
               }}>
                 <form onSubmit={handleSubmit}>
                   <div style={{ marginBottom: "1.5rem" }}>
-                    <label style={{
+                    <label htmlFor="driver-name" style={{
                       display: "block",
                       marginBottom: "0.5rem",
                       fontSize: "0.9rem",
@@ -203,6 +423,9 @@ function DriverProfile() {
                     </label>
                     <input
                       type="text"
+                      id="driver-name"
+                      name="driver-name"
+                      autoComplete="name"
                       value={formData.name}
                       onChange={(e) => {
                         setFormData({ ...formData, name: e.target.value });
@@ -225,7 +448,7 @@ function DriverProfile() {
                   </div>
 
                   <div style={{ marginBottom: "1.5rem" }}>
-                    <label style={{
+                    <label htmlFor="driver-email" style={{
                       display: "block",
                       marginBottom: "0.5rem",
                       fontSize: "0.9rem",
@@ -235,6 +458,9 @@ function DriverProfile() {
                     </label>
                     <input
                       type="email"
+                      id="driver-email"
+                      name="driver-email"
+                      autoComplete="email"
                       value={formData.email}
                       onChange={(e) => {
                         setFormData({ ...formData, email: e.target.value });
@@ -257,7 +483,7 @@ function DriverProfile() {
                   </div>
 
                   <div style={{ marginBottom: "1.5rem" }}>
-                    <label style={{
+                    <label htmlFor="driver-phone" style={{
                       display: "block",
                       marginBottom: "0.5rem",
                       fontSize: "0.9rem",
@@ -267,6 +493,9 @@ function DriverProfile() {
                     </label>
                     <input
                       type="tel"
+                      id="driver-phone"
+                      name="driver-phone"
+                      autoComplete="tel"
                       value={formData.phone}
                       onChange={(e) => {
                         setFormData({ ...formData, phone: e.target.value });
@@ -299,7 +528,7 @@ function DriverProfile() {
                     </p>
 
                     <div style={{ marginBottom: "1.5rem" }}>
-                      <label style={{
+                      <label htmlFor="driver-current-password" style={{
                         display: "block",
                         marginBottom: "0.5rem",
                         fontSize: "0.9rem",
@@ -308,6 +537,9 @@ function DriverProfile() {
                         Current Password
                       </label>
                       <PasswordInput
+                        id="driver-current-password"
+                        name="driver-current-password"
+                        autoComplete="current-password"
                         value={formData.currentPassword}
                         onChange={(e) => {
                           setFormData({ ...formData, currentPassword: e.target.value });
@@ -323,7 +555,7 @@ function DriverProfile() {
                     </div>
 
                     <div style={{ marginBottom: "1.5rem" }}>
-                      <label style={{
+                      <label htmlFor="driver-new-password" style={{
                         display: "block",
                         marginBottom: "0.5rem",
                         fontSize: "0.9rem",
@@ -332,6 +564,9 @@ function DriverProfile() {
                         New Password
                       </label>
                       <PasswordInput
+                        id="driver-new-password"
+                        name="driver-new-password"
+                        autoComplete="new-password"
                         value={formData.newPassword}
                         onChange={(e) => {
                           setFormData({ ...formData, newPassword: e.target.value });
@@ -347,7 +582,7 @@ function DriverProfile() {
                     </div>
 
                     <div style={{ marginBottom: "1.5rem" }}>
-                      <label style={{
+                      <label htmlFor="driver-confirm-password" style={{
                         display: "block",
                         marginBottom: "0.5rem",
                         fontSize: "0.9rem",
@@ -356,6 +591,9 @@ function DriverProfile() {
                         Confirm New Password
                       </label>
                       <PasswordInput
+                        id="driver-confirm-password"
+                        name="driver-confirm-password"
+                        autoComplete="new-password"
                         value={formData.confirmPassword}
                         onChange={(e) => {
                           setFormData({ ...formData, confirmPassword: e.target.value });
@@ -418,10 +656,3 @@ function DriverProfile() {
 }
 
 export default DriverProfile;
-
-
-
-
-
-
-

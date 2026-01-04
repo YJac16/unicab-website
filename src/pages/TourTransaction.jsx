@@ -25,7 +25,7 @@ function TourTransaction() {
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  const { pax, date, tour, drivers } = location.state || {};
+  const { pax, date, time, tour, drivers } = location.state || {};
   const driver = drivers?.[0] || location.state?.driver;
 
   useEffect(() => {
@@ -113,6 +113,8 @@ function TourTransaction() {
       const driverId = driver.id || driver.driver_id;
       const tourId = tour.id;
 
+      const { time } = location.state || {};
+      
       const bookingData = {
         tour_id: tourId,
         driver_id: driverId,
@@ -120,6 +122,7 @@ function TourTransaction() {
         customer_email: formData.email,
         customer_phone: formData.phone || null,
         date: date,
+        time: time || null,
         group_size: pax,
         price_per_person: pricePerPerson,
         total_price: totalPrice,

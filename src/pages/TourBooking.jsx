@@ -15,6 +15,7 @@ function TourBooking() {
   const [navOpen, setNavOpen] = useState(false);
   const [pax, setPax] = useState(1);
   const [selectedDate, setSelectedDate] = useState("");
+  const [selectedTime, setSelectedTime] = useState("");
   const [selectedDrivers, setSelectedDrivers] = useState([]);
   const [errors, setErrors] = useState({});
   const [showDriverSelection, setShowDriverSelection] = useState(false);
@@ -23,6 +24,10 @@ function TourBooking() {
   const [tour, setTour] = useState(null);
   const [availableDrivers, setAvailableDrivers] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Cutoff time (8 PM = 20:00) - tours cannot end after this time
+  const CUTOFF_HOUR = 20;
+  const CUTOFF_MINUTE = 0;
 
   useEffect(() => {
     loadTour();
@@ -76,6 +81,18 @@ function TourBooking() {
 
   // availableDrivers is now loaded from API
 
+  // Calculate tour end time and validate against cutoff
+  const calculateEndTime = (startTime, durationHours) => {
+    if (!startTime || !durationHours) return null;
+    
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const startDate = new Date();
+    startDate.setHours(hours, minutes || 0, 0, 0);
+    
+    const endDate = new Date(startDate.getTime() + (durationHours * 60 * 60 * 1000));
+    return endDate;
+  };
+
   const validateDateAndPax = () => {
     const newErrors = {};
     if (pax < 1 || pax > 22) {
@@ -91,7 +108,57 @@ function TourBooking() {
         newErrors.date = "Date cannot be in the past";
       }
     }
+    
+    // Validate time selection
+    if (!selectedTime) {
+      newErrors.time = "Please select a start time";
+    } else if (tour) {
+      // Get tour duration in hours (from duration_hours field or parse from duration text)
+      const durationHours = tour.duration_hours || parseDurationHours(tour.duration) || 8;
+      
+      // Calculate end time
+      const endTime = calculateEndTime(selectedTime, durationHours);
+      
+      if (endTime) {
+        const cutoffTime = new Date();
+        cutoffTime.setHours(CUTOFF_HOUR, CUTOFF_MINUTE, 0, 0);
+        
+        if (endTime > cutoffTime) {
+          const endTimeStr = endTime.toLocaleTimeString('en-US', { 
+            hour: 'numeric', 
+            minute: '2-digit',
+            hour12: true 
+          });
+          newErrors.time = `This tour would end at ${endTimeStr}, which is after our ${CUTOFF_HOUR}:${CUTOFF_MINUTE.toString().padStart(2, '0')} cutoff time. Please select an earlier start time.`;
+        }
+      }
+    }
+    
     return newErrors;
+  };
+
+  // Parse duration hours from duration text (e.g., "Full Day (8–9 hours)" -> 8.5)
+  const parseDurationHours = (durationText) => {
+    if (!durationText) return null;
+    
+    // Match patterns like "8-9 hours", "8.5 hours", "Full Day (8–9 hours)"
+    const rangeMatch = durationText.match(/(\d+\.?\d*)\s*-?\s*(\d+\.?\d*)\s*hours?/i);
+    if (rangeMatch) {
+      const start = parseFloat(rangeMatch[1]);
+      const end = parseFloat(rangeMatch[2]);
+      return (start + end) / 2; // Average
+    }
+    
+    const singleMatch = durationText.match(/(\d+\.?\d*)\s*hours?/i);
+    if (singleMatch) {
+      return parseFloat(singleMatch[1]);
+    }
+    
+    // Check for "full day" or "half day"
+    if (durationText.toLowerCase().includes('full day')) return 8.0;
+    if (durationText.toLowerCase().includes('half day')) return 4.0;
+    
+    return null;
   };
 
   const validateForm = () => {
@@ -205,7 +272,8 @@ function TourBooking() {
     // Navigate to transaction page with booking details
     const bookingState = { 
       pax: parseInt(pax), 
-      date: selectedDate, 
+      date: selectedDate,
+      time: selectedTime,
       tour: tour,
       drivers: selectedDrivers,
       driver: selectedDrivers[0] // Keep for backward compatibility
@@ -357,7 +425,10 @@ function TourBooking() {
                       <input
                         type="date"
                         value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
+                        onChange={(e) => {
+                          setSelectedDate(e.target.value);
+                          setErrors({ ...errors, date: null });
+                        }}
                         min={new Date().toISOString().split("T")[0]}
                         style={{
                           width: "100%",
@@ -368,6 +439,47 @@ function TourBooking() {
                         }}
                       />
                       {errors.date && <p style={{ color: "#e74c3c", fontSize: "0.85rem", marginTop: "0.25rem" }}>{errors.date}</p>}
+                    </div>
+
+                    <div style={{ marginBottom: "1.5rem" }}>
+                      <label style={{ display: "block", marginBottom: "0.75rem", fontSize: "0.9rem", fontWeight: "500" }}>
+                        Start Time *
+                      </label>
+                      <input
+                        type="time"
+                        value={selectedTime}
+                        onChange={(e) => {
+                          setSelectedTime(e.target.value);
+                          setErrors({ ...errors, time: null });
+                        }}
+                        min="06:00"
+                        max="20:00"
+                        style={{
+                          width: "100%",
+                          padding: "0.75rem",
+                          border: `1px solid ${errors.time ? "#e74c3c" : "var(--border-soft)"}`,
+                          borderRadius: "8px",
+                          fontSize: "0.9rem"
+                        }}
+                      />
+                      {errors.time && <p style={{ color: "#e74c3c", fontSize: "0.85rem", marginTop: "0.25rem" }}>{errors.time}</p>}
+                      {tour && selectedTime && !errors.time && (() => {
+                        const durationHours = tour.duration_hours || parseDurationHours(tour.duration) || 8;
+                        const endTime = calculateEndTime(selectedTime, durationHours);
+                        if (endTime) {
+                          const endTimeStr = endTime.toLocaleTimeString('en-US', { 
+                            hour: 'numeric', 
+                            minute: '2-digit',
+                            hour12: true 
+                          });
+                          return (
+                            <p style={{ color: "var(--text-soft)", fontSize: "0.85rem", marginTop: "0.25rem" }}>
+                              Tour will end approximately at {endTimeStr}
+                            </p>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
 
                     {/* Pricing Display */}

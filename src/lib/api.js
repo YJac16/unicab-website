@@ -3,12 +3,52 @@ import { supabase, isSupabaseConfigured } from './supabase';
 // API Base URL - use backend Express server
 // In development, Vite proxy handles /api routes, so we use relative URLs
 // In production, use VITE_API_URL if set, otherwise use relative URLs
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+const getApiBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  
+  // In development (localhost), always use relative URLs to use Vite proxy
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    const isLocalhost = hostname === 'localhost' || 
+                        hostname === '127.0.0.1' ||
+                        hostname.includes('localhost') ||
+                        hostname.includes('127.0.0.1');
+    
+    if (isLocalhost) {
+      // Force relative URLs in development to use Vite proxy
+      console.log('[API] Development mode detected, using relative URLs for Vite proxy');
+      return '';
+    }
+  }
+  
+  // In production, use VITE_API_URL if set
+  if (envUrl) {
+    // Remove trailing slash to avoid double slashes
+    const cleanUrl = envUrl.replace(/\/+$/, '');
+    console.log('[API] Using production API URL:', cleanUrl);
+    return cleanUrl;
+  }
+  
+  // Default to relative URLs
+  console.log('[API] No API URL set, using relative URLs');
+  return '';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 // Helper function to call backend API
 const apiCall = async (endpoint, options = {}) => {
   try {
-    const url = API_BASE_URL ? `${API_BASE_URL}${endpoint}` : endpoint;
+    // Ensure endpoint starts with / and base URL doesn't end with /
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const url = API_BASE_URL ? `${API_BASE_URL}${cleanEndpoint}` : cleanEndpoint;
+    
+    // Debug logging in development
+    if (typeof window !== 'undefined' && 
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+      console.log('[API] Calling:', url, 'from', window.location.origin);
+    }
+    
     const response = await fetch(url, {
       ...options,
       headers: {
@@ -189,11 +229,13 @@ export const createBooking = async (bookingData) => {
     tour_id: bookingData.tour_id || bookingData.tourId,
     guide_id: bookingData.guide_id || bookingData.guideId || bookingData.driver_id || bookingData.driverId,
     booking_date: bookingData.date || bookingData.booking_date,
+    booking_time: bookingData.time || bookingData.booking_time || null,
     group_size: bookingData.group_size || bookingData.pax,
     customer_name: bookingData.customer_name || bookingData.customerName || `${bookingData.firstName || ''} ${bookingData.lastName || ''}`.trim(),
     customer_email: bookingData.customer_email || bookingData.customerEmail || bookingData.email,
     customer_phone: bookingData.customer_phone || bookingData.customerPhone || bookingData.phone,
     special_requests: bookingData.special_requests || bookingData.specialRequests,
+    status: bookingData.status || 'reserved', // Pass status to backend
     user_id: bookingData.user_id || null, // Will be set by backend if member is logged in
   };
 
@@ -439,7 +481,33 @@ export const getDriverUnavailability = async () => {
 
 // Admin API (requires authentication token)
 const adminApiCall = async (endpoint, options = {}) => {
-  const token = localStorage.getItem('auth_token');
+  // Try to get Supabase session token first
+  let token = null;
+  
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      token = session.access_token;
+    }
+  } catch (error) {
+    console.warn('Could not get Supabase session:', error);
+  }
+  
+  // Fallback to localStorage token (for legacy JWT support)
+  if (!token) {
+    token = localStorage.getItem('auth_token');
+  }
+  
+  if (!token) {
+    return {
+      data: null,
+      error: {
+        message: 'Authentication required. Please log in.',
+        status: 401
+      }
+    };
+  }
+  
   return apiCall(endpoint, {
     ...options,
     headers: {
@@ -465,154 +533,12 @@ export const getAdminDrivers = async () => {
   return adminApiCall('/api/admin/drivers');
 };
 
-// Create driver record for existing auth user
-// Note: User must already exist in auth.users and profiles table
+// Create driver record - calls backend API which handles both new and existing users
 export const createDriver = async (driverData) => {
-  if (!isSupabaseConfigured()) {
-    return { 
-      data: null, 
-      error: { 
-        message: 'Supabase not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.' 
-      } 
-    };
-  }
-
-  try {
-    const { name, email, phone, license_number } = driverData;
-
-    // Validate required fields
-    if (!name || !email) {
-      return {
-        data: null,
-        error: { message: 'Name and email are required' }
-      };
-    }
-
-    // Validate email format
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return {
-        data: null,
-        error: { message: 'Invalid email format' }
-      };
-    }
-
-    // Check if user exists in profiles table (which means they exist in auth.users)
-    const { data: profileData, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, email, role')
-      .eq('email', email.toLowerCase().trim())
-      .single();
-
-    if (profileError && profileError.code !== 'PGRST116') {
-      // PGRST116 means "no rows found" - that's expected if user doesn't exist
-      console.error('Error checking for user:', profileError);
-      return {
-        data: null,
-        error: { 
-          message: 'Unable to verify user. Please ensure the user account exists first.' 
-        }
-      };
-    }
-
-    if (!profileData) {
-      return {
-        data: null,
-        error: { 
-          message: 'User with this email does not exist. Please create the user account first in Supabase Authentication, then add them as a driver.' 
-        }
-      };
-    }
-
-    // Check if driver record already exists
-    const { data: existingDriver, error: driverCheckError } = await supabase
-      .from('drivers')
-      .select('id, email')
-      .eq('email', email.toLowerCase().trim())
-      .single();
-
-    if (existingDriver) {
-      return {
-        data: null,
-        error: { 
-          message: 'A driver with this email already exists.' 
-        }
-      };
-    }
-
-    // Check if user_id is already linked to another driver
-    const { data: existingDriverByUserId, error: userIdCheckError } = await supabase
-      .from('drivers')
-      .select('id, email')
-      .eq('user_id', profileData.id)
-      .single();
-
-    if (existingDriverByUserId) {
-      return {
-        data: null,
-        error: { 
-          message: 'This user is already linked to a driver account.' 
-        }
-      };
-    }
-
-    // Update profile role to 'driver' if not already
-    if (profileData.role !== 'driver') {
-      const { error: roleUpdateError } = await supabase
-        .from('profiles')
-        .update({ role: 'driver' })
-        .eq('id', profileData.id);
-
-      if (roleUpdateError) {
-        console.warn('Could not update profile role to driver:', roleUpdateError);
-        // Continue anyway - driver record can still be created
-      }
-    }
-
-    // Create driver record
-    const { data: newDriver, error: driverError } = await supabase
-      .from('drivers')
-      .insert({
-        user_id: profileData.id,
-        name: name.trim(),
-        email: email.toLowerCase().trim(),
-        phone: phone?.trim() || null,
-        license_number: license_number?.trim() || null,
-        active: true
-      })
-      .select()
-      .single();
-
-    if (driverError) {
-      console.error('Error creating driver record:', driverError);
-      return {
-        data: null,
-        error: { 
-          message: driverError.message || 'Failed to create driver record. Please check that the drivers table exists and you have permission to insert.' 
-        }
-      };
-    }
-
-    return {
-      data: {
-        user_id: profileData.id,
-        driver_id: newDriver.id,
-        name: newDriver.name,
-        email: newDriver.email,
-        phone: newDriver.phone,
-        license_number: newDriver.license_number,
-        status: 'active'
-      },
-      error: null
-    };
-  } catch (error) {
-    console.error('Exception creating driver:', error);
-    return {
-      data: null,
-      error: { 
-        message: error.message || 'An unexpected error occurred while creating the driver.' 
-      }
-    };
-  }
+  return adminApiCall('/api/admin/drivers', {
+    method: 'POST',
+    body: JSON.stringify(driverData),
+  });
 };
 
 export const updateDriverStatus = async (driverId, active) => {

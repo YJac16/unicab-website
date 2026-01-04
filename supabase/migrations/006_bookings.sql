@@ -1,5 +1,5 @@
 -- =========================
--- 007d_BOOKINGS
+-- 006_bookings
 -- =========================
 
 alter table bookings enable row level security;
@@ -35,7 +35,7 @@ end $$;
 alter table bookings drop constraint if exists bookings_status_check;
 alter table bookings
 add constraint bookings_status_check
-check (status in ('pending','confirmed','completed','cancelled'));
+check (status in ('reserved','pending','confirmed','completed','cancelled'));
 
 -- Users see own bookings
 create policy "Users read own bookings"
@@ -82,9 +82,3 @@ on bookings
 for all
 using (public.is_admin())
 with check (public.is_admin());
-
-
-
-
-
-

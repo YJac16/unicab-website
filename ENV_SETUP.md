@@ -1,3 +1,4 @@
+
 # Environment Variables Setup
 
 This document describes all environment variables needed for the tour booking system.

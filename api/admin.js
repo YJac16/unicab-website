@@ -140,20 +140,80 @@ router.patch('/bookings/:id', async (req, res) => {
 });
 
 // GET /api/admin/drivers
-// List all drivers (guides with user accounts)
+// List all drivers from Supabase
 router.get('/drivers', async (req, res) => {
   try {
-    if (!db.isConfigured()) {
+    // Check if Supabase is configured
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseServiceKey) {
       return res.status(501).json({
         success: false,
-        error: 'Database not configured'
+        error: 'Supabase not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY'
       });
     }
 
-    const result = await db.getGuidesWithUsers();
+    const { createClient } = require('@supabase/supabase-js');
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
+
+    // Fetch all drivers with their user info
+    const { data: drivers, error: driversError } = await supabaseAdmin
+      .from('drivers')
+      .select(`
+        id,
+        user_id,
+        name,
+        email,
+        phone,
+        license_number,
+        active,
+        created_at
+      `)
+      .order('created_at', { ascending: false });
+
+    if (driversError) {
+      console.error('Error fetching drivers:', driversError);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch drivers',
+        message: driversError.message
+      });
+    }
+
+    // Also get profile info for each driver
+    const driversWithProfiles = await Promise.all(
+      (drivers || []).map(async (driver) => {
+        if (driver.user_id) {
+          const { data: profile, error: profileError } = await supabaseAdmin
+            .from('profiles')
+            .select('role, full_name')
+            .eq('id', driver.user_id)
+            .maybeSingle(); // Use maybeSingle() instead of single() to handle missing profiles
+
+          // If profile doesn't exist, that's okay - just use driver data
+          if (profileError && profileError.code !== 'PGRST116') {
+            console.warn(`Error fetching profile for driver ${driver.id}:`, profileError);
+          }
+
+          return {
+            ...driver,
+            role: profile?.role || null,
+            full_name: profile?.full_name || driver.name
+          };
+        }
+        return driver;
+      })
+    );
+
     res.json({
       success: true,
-      data: result.rows || []
+      data: driversWithProfiles || []
     });
   } catch (error) {
     console.error('Error fetching drivers:', error);
@@ -208,16 +268,113 @@ router.post('/drivers', async (req, res) => {
     });
 
     // Check if user already exists in auth.users
-    const { data: existingUser } = await supabaseAdmin.auth.admin.getUserByEmail(email.toLowerCase().trim());
+    let existingUser = null;
+    try {
+      const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserByEmail(email.toLowerCase().trim());
+      if (!userError && userData?.user) {
+        existingUser = userData;
+      }
+    } catch (error) {
+      // User doesn't exist, which is fine - we'll create a new one
+      console.log('User not found, will create new user:', error.message);
+    }
     
+    // If user exists, link them as driver instead of creating new user
     if (existingUser?.user) {
-      return res.status(409).json({
-        success: false,
-        error: 'A user with this email already exists'
+      const userId = existingUser.user.id;
+
+      // Check if driver record already exists
+      const { data: existingDriver, error: driverCheckError } = await supabaseAdmin
+        .from('drivers')
+        .select('id, user_id, name')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (driverCheckError && driverCheckError.code !== 'PGRST116') {
+        console.error('Error checking existing driver:', driverCheckError);
+      }
+
+      if (existingDriver) {
+        return res.status(409).json({
+          success: false,
+          error: 'This user is already linked as a driver',
+          data: {
+            driver_id: existingDriver.id,
+            name: existingDriver.name
+          }
+        });
+      }
+
+      // Update profile to set role='driver' if not already
+      const { data: profile, error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .select('id, role')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (profileError && profileError.code !== 'PGRST116') {
+        console.error('Error fetching profile:', profileError);
+      }
+
+      if (profile) {
+        if (profile.role !== 'driver') {
+          await supabaseAdmin
+            .from('profiles')
+            .update({ role: 'driver' })
+            .eq('id', userId);
+        }
+      } else {
+        // Create profile if it doesn't exist
+        await supabaseAdmin
+          .from('profiles')
+          .insert({
+            id: userId,
+            role: 'driver',
+            email: email.toLowerCase().trim(),
+            full_name: name.trim()
+          });
+      }
+
+      // Create driver record
+      const { data: driverData, error: driverError } = await supabaseAdmin
+        .from('drivers')
+        .insert({
+          user_id: userId,
+          name: name.trim(),
+          email: email.toLowerCase().trim(),
+          phone: phone?.trim() || null,
+          license_number: license_number?.trim() || null,
+          active: true
+        })
+        .select()
+        .single();
+
+      if (driverError) {
+        console.error('Driver creation error:', driverError);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to create driver record',
+          message: driverError.message
+        });
+      }
+
+      return res.status(201).json({
+        success: true,
+        data: {
+          user_id: userId,
+          driver_id: driverData.id,
+          name: driverData.name,
+          email: driverData.email,
+          phone: driverData.phone,
+          license_number: driverData.license_number,
+          status: 'active',
+          existing_user: true
+        },
+        message: 'Existing user successfully linked as driver'
       });
     }
 
-    // Check if driver record already exists
+    // Check if driver record already exists (for new users)
     const { data: existingDriver } = await supabaseAdmin
       .from('drivers')
       .select('id, email')
