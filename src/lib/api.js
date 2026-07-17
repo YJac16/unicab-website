@@ -275,7 +275,6 @@ export const getTour = async (id) => {
           duration: data.duration || localTour.duration,
           duration_hours: data.duration_hours ?? localTour.duration_hours,
           pricing: data.pricing || localTour.pricing,
-          getPrice: localTour.getPrice,
           image: data.image_url || localTour.image,
           priceFrom: data.price_from || localTour.priceFrom,
           highlights: data.highlights || localTour.highlights,

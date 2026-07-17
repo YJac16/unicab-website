@@ -76,8 +76,15 @@ function DriverSelection() {
       return;
     }
 
+    const plainTour = tour
+      ? JSON.parse(JSON.stringify({ ...tour, getPrice: undefined }))
+      : null;
+    const plainDriver = selectedDriver
+      ? JSON.parse(JSON.stringify({ ...selectedDriver }))
+      : null;
+
     navigate(`/tours/${id}/checkout`, {
-      state: { pax, date, tour, driver: selectedDriver }
+      state: { pax, date, tour: plainTour, driver: plainDriver, drivers: plainDriver ? [plainDriver] : [] }
     });
   };
 

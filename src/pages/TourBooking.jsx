@@ -269,23 +269,27 @@ function TourBooking() {
     }
     
     // Navigate to checkout (YOCO payment)
-    const bookingState = { 
-      pax: parseInt(pax), 
+    // History state must be cloneable — never pass functions (e.g. tour.getPrice)
+    const plainTour = tour
+      ? JSON.parse(JSON.stringify({ ...tour, getPrice: undefined }))
+      : null;
+    const plainDrivers = selectedDrivers.map((d) =>
+      JSON.parse(JSON.stringify({ ...d }))
+    );
+
+    const bookingState = {
+      pax: parseInt(pax, 10),
       date: selectedDate,
       time: selectedTime,
-      tour: tour,
-      drivers: selectedDrivers,
-      driver: selectedDrivers[0]
+      tour: plainTour,
+      drivers: plainDrivers,
+      driver: plainDrivers[0] || null,
     };
-    
-    console.log("Navigating to Checkout with:", bookingState);
-    
-    setTimeout(() => {
-      navigate(`/tours/${id}/checkout`, {
-        state: bookingState,
-        replace: false
-      });
-    }, 0);
+
+    navigate(`/tours/${id}/checkout`, {
+      state: bookingState,
+      replace: false,
+    });
   };
 
   const pricePerPerson = calculateTourPrice(tour, pax);

@@ -18,7 +18,8 @@
     "PostgREST",
     "Yoco",
     "YOCO",
-    "Unicab"
+    "Unicab",
+    "fkey"
   ],
   "ignorePaths": [
     "node_modules/**",
