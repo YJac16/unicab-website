@@ -32,13 +32,19 @@
 Create a `.env` file in the project root:
 
 ```env
+# Project root ONLY — do NOT append /rest/v1
 VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 VITE_SUPABASE_ANON_KEY=your_anon_key
 SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ```
 
-**Production (Railway):** set the same `VITE_*` values in the service variables, then **redeploy / rebuild**. Vite bakes `VITE_` vars at build time — changing them without a rebuild will leave the old (broken) URL in the live JS bundle.
+**Wrong:** `https://xxxx.supabase.co/rest/v1` (causes `/rest/v1/rest/v1/...` 404s)  
+**Right:** `https://xxxx.supabase.co`
+
+**Production (Railway):** set the same values in the service variables, then **redeploy / rebuild**. Vite bakes `VITE_` vars at build time — changing them without a rebuild will leave the old URL in the live JS bundle.
+
+Server bookings/payments also need `SUPABASE_SERVICE_ROLE_KEY` (Settings → API → `service_role`). Without it, `/api/bookings` returns 501 "Supabase not configured".
 
 If `VITE_SUPABASE_URL` points at a deleted project, the browser shows `net::ERR_NAME_NOT_RESOLVED`. The site falls back to local tour/driver data, but login, bookings, and cloud reviews need a live project.
 

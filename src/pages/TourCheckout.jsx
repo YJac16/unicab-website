@@ -81,7 +81,11 @@ function TourCheckout() {
 
       const { data: booking, error } = await createBooking(bookingData);
       if (error || !booking?.id) {
-        alert(error?.message || error?.error || "Failed to create booking. Please try again.");
+        alert(
+          error?.message ||
+            error?.error ||
+            "Failed to create booking. Please try again."
+        );
         setSubmitting(false);
         return;
       }

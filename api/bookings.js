@@ -69,7 +69,9 @@ router.post('/', optionalAuth, async (req, res) => {
     if (!isSupabaseConfigured()) {
       return res.status(501).json({
         success: false,
-        error: 'Supabase not configured'
+        error: 'Supabase not configured',
+        message:
+          'Set SUPABASE_URL to https://YOUR_PROJECT.supabase.co (no /rest/v1) and SUPABASE_SERVICE_ROLE_KEY on Railway, then redeploy.'
       });
     }
 
