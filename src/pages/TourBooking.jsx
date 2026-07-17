@@ -269,21 +269,20 @@ function TourBooking() {
       return;
     }
     
-    // Navigate to transaction page with booking details
+    // Navigate to checkout (YOCO payment)
     const bookingState = { 
       pax: parseInt(pax), 
       date: selectedDate,
       time: selectedTime,
       tour: tour,
       drivers: selectedDrivers,
-      driver: selectedDrivers[0] // Keep for backward compatibility
+      driver: selectedDrivers[0]
     };
     
-    console.log("Navigating to Transaction page with:", bookingState);
+    console.log("Navigating to Checkout with:", bookingState);
     
-    // Navigate to Transaction page
     setTimeout(() => {
-      navigate(`/tours/${id}/transaction`, {
+      navigate(`/tours/${id}/checkout`, {
         state: bookingState,
         replace: false
       });
@@ -943,7 +942,7 @@ function TourBooking() {
                         fontWeight: "600"
                       }}
                     >
-                      Proceed to Payment →
+                      Proceed to Checkout →
                     </button>
                   </div>
                 </>

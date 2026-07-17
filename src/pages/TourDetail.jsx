@@ -196,16 +196,8 @@ function TourDetail() {
               <li className="cta-nav">
                 <Link 
                   className="btn btn-primary btn-compact" 
-                  to="/"
-                  onClick={() => {
-                    setNavOpen(false);
-                    setTimeout(() => {
-                      const contactSection = document.getElementById('contact');
-                      if (contactSection) {
-                        contactSection.scrollIntoView({ behavior: 'smooth' });
-                      }
-                    }, 100);
-                  }}
+                  to="/tours"
+                  onClick={() => setNavOpen(false)}
                 >
                   Book Now
                 </Link>
@@ -343,14 +335,11 @@ function TourDetail() {
               <div style={{ marginTop: "3rem", padding: "2rem", backgroundColor: "var(--bg-elevated)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-soft)" }}>
                 <h3 style={{ marginTop: 0, marginBottom: "1rem" }}>Ready to Book?</h3>
                 <p style={{ marginBottom: "1.5rem", color: "var(--text-soft)" }}>
-                  Book directly on our site or through SimplyBook.me.
+                  Book this experience through our secure online booking system. Payment is completed with YOCO Checkout.
                 </p>
                 <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
                   <Link to={`/tours/${tour.id}/booking`} className="btn btn-primary" style={{ textDecoration: "none" }}>
-                    Book This Tour
-                  </Link>
-                  <Link to="/book" className="btn btn-outline" style={{ textDecoration: "none" }}>
-                    Book via SimplyBook
+                    Book Now
                   </Link>
                   <Link to="/tours" className="btn btn-outline" style={{ textDecoration: "none" }}>
                     View All Tours

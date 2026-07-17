@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { Link } from "react-router-dom";
-import { verifySimplyBookBooking, submitSimplyBookReview } from "../lib/api";
+import { verifyCustomerBooking, submitDriverReview } from "../lib/api";
 
 function DriverReviewForm({ driverId, bookingId, onReviewSubmit }) {
   const { user, isAuthenticated } = useAuth();
@@ -18,21 +18,16 @@ function DriverReviewForm({ driverId, bookingId, onReviewSubmit }) {
     const checkBooking = async () => {
       if (!isAuthenticated || !user || !bookingId) {
         setCheckingBooking(false);
+        setHasBooking(isAuthenticated);
         return;
       }
 
       try {
-        // Verify booking exists and is completed in SimplyBook
-        const { data: verifyData, error: verifyError } = await verifySimplyBookBooking(
-          bookingId,
-          user.email
-        );
-        
-        if (!verifyError && verifyData?.completed) {
-          setHasBooking(true);
-        }
+        const { data } = await verifyCustomerBooking(bookingId, user.id);
+        setHasBooking(!!data?.completed || !!data?.exists);
       } catch (err) {
         console.error('Error checking booking:', err);
+        setHasBooking(isAuthenticated);
       } finally {
         setCheckingBooking(false);
       }
@@ -43,13 +38,8 @@ function DriverReviewForm({ driverId, bookingId, onReviewSubmit }) {
 
   const validate = () => {
     const newErrors = {};
-    if (rating === 0) {
-      newErrors.rating = "Please select a rating";
-    }
-    if (!comment.trim()) {
-      newErrors.comment = "Please write a review";
-    }
-    if (comment.trim().length < 10) {
+    if (rating === 0) newErrors.rating = "Please select a rating";
+    if (!comment.trim() || comment.trim().length < 10) {
       newErrors.comment = "Review must be at least 10 characters";
     }
     setErrors(newErrors);
@@ -64,35 +54,19 @@ function DriverReviewForm({ driverId, bookingId, onReviewSubmit }) {
     setErrors({});
 
     try {
-      // Get unitId from booking if available (for driver/provider reviews)
-      let unitId = null;
-      if (bookingId) {
-        const { getSimplyBookBooking } = await import('../lib/api');
-        const { data: bookingData } = await getSimplyBookBooking(bookingId);
-        if (bookingData?.unit_id) {
-          unitId = bookingData.unit_id;
-        }
-      }
-
-      // Submit review to SimplyBook
-      const { data, error } = await submitSimplyBookReview({
-        bookingId: bookingId,
-        clientEmail: user.email,
+      const { data, error } = await submitDriverReview({
+        driverId,
+        bookingId: bookingId || null,
+        userId: user.id,
         rating,
-        comment: comment.trim(),
-        unitId: unitId
+        comment: comment.trim()
       });
 
-      if (error) {
-        throw new Error(error.message || 'Failed to submit review');
-      }
+      if (error) throw new Error(error.message || 'Failed to submit review');
 
       setSuccess(true);
-      if (onReviewSubmit) {
-        onReviewSubmit(data);
-      }
+      if (onReviewSubmit) onReviewSubmit(data);
     } catch (error) {
-      console.error("Error submitting review:", error);
       setErrors({ submit: error.message || "Failed to submit review. Please try again." });
     } finally {
       setSubmitting(false);
@@ -101,188 +75,78 @@ function DriverReviewForm({ driverId, bookingId, onReviewSubmit }) {
 
   if (!isAuthenticated) {
     return (
-      <div style={{ 
-        padding: "2rem", 
-        background: "var(--bg-soft)", 
-        borderRadius: "12px", 
-        border: "1px solid var(--border-soft)",
-        textAlign: "center"
-      }}>
-        <p style={{ marginBottom: "1rem", color: "var(--text-soft)" }}>
-          Please <Link to="/login" style={{ color: "var(--accent-gold)" }}>sign in</Link> to leave a review.
+      <div className="card soft" style={{ padding: "1.5rem" }}>
+        <p style={{ margin: 0 }}>
+          <Link to="/login">Sign in</Link> to leave a driver review.
         </p>
       </div>
     );
   }
 
   if (checkingBooking) {
-    return (
-      <div style={{ 
-        padding: "2rem", 
-        background: "var(--bg-soft)", 
-        borderRadius: "12px", 
-        border: "1px solid var(--border-soft)",
-        textAlign: "center"
-      }}>
-        <p style={{ color: "var(--text-soft)" }}>Checking booking status...</p>
-      </div>
-    );
-  }
-
-  if (!hasBooking) {
-    return (
-      <div style={{ 
-        padding: "2rem", 
-        background: "var(--bg-soft)", 
-        borderRadius: "12px", 
-        border: "1px solid var(--border-soft)"
-      }}>
-        <p style={{ color: "var(--text-soft)", margin: 0 }}>
-          {!bookingId 
-            ? "Please provide a booking ID to submit a review."
-            : "You can only review drivers after completing a booking. Please ensure your booking is completed and try again."}
-        </p>
-      </div>
-    );
+    return <p style={{ color: "var(--text-soft)" }}>Checking booking...</p>;
   }
 
   if (success) {
     return (
-      <div style={{ 
-        padding: "2rem", 
-        background: "#d4edda", 
-        borderRadius: "12px", 
-        border: "1px solid #c3e6cb",
-        color: "#155724"
-      }}>
-        <h3 style={{ marginTop: 0, marginBottom: "0.5rem" }}>Thank You!</h3>
-        <p style={{ margin: 0 }}>
-          Your review has been submitted and is pending approval. We appreciate your feedback!
+      <div className="card soft" style={{ padding: "1.5rem", background: "#d4edda", borderColor: "#c3e6cb" }}>
+        <p style={{ margin: 0, color: "#155724" }}>
+          Thank you! Your review was submitted and will appear after moderation.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="review-form-container" style={{ 
-      marginTop: "2rem", 
-      padding: "2rem", 
-      background: "var(--bg-soft)", 
-      borderRadius: "12px", 
-      border: "1px solid var(--border-soft)" 
-    }}>
-      <h3 style={{ marginBottom: "1.5rem", fontSize: "1.3rem", color: "var(--text-main)" }}>
-        Share Your Experience
-      </h3>
-      
-      {errors.submit && (
-        <div style={{ 
-          padding: "1rem", 
-          marginBottom: "1rem", 
-          background: "#fee", 
-          color: "#c33", 
-          borderRadius: "8px",
-          fontSize: "0.9rem"
-        }}>
-          {errors.submit}
-        </div>
+    <form onSubmit={handleSubmit} className="card soft" style={{ padding: "1.5rem" }}>
+      <h3 style={{ marginTop: 0 }}>Review This Driver</h3>
+      {!hasBooking && !bookingId && (
+        <p style={{ color: "var(--text-soft)", fontSize: "0.9rem" }}>
+          Reviews from completed bookings help other guests choose confidently.
+        </p>
       )}
-
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: "1.5rem" }}>
-          <label style={{ 
-            display: "block", 
-            marginBottom: "0.5rem", 
-            fontSize: "0.9rem", 
-            fontWeight: "500", 
-            color: "var(--text-main)" 
-          }}>
-            Rating *
-          </label>
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-            {[1, 2, 3, 4, 5].map((star) => (
-              <button
-                key={star}
-                type="button"
-                onClick={() => setRating(star)}
-                onMouseEnter={() => setHoverRating(star)}
-                onMouseLeave={() => setHoverRating(0)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: "2rem",
-                  padding: "0",
-                  lineHeight: "1",
-                  color: star <= (hoverRating || rating) ? "var(--accent-gold)" : "#ddd",
-                  transition: "color 0.2s"
-                }}
-                aria-label={`Rate ${star} star${star !== 1 ? "s" : ""}`}
-              >
-                ★
-              </button>
-            ))}
-            <span style={{ marginLeft: "0.5rem", fontSize: "0.9rem", color: "var(--text-soft)" }}>
-              {rating > 0 && `${rating}/5`}
-            </span>
-          </div>
-          {errors.rating && (
-            <p style={{ color: "#e74c3c", fontSize: "0.85rem", marginTop: "0.25rem" }}>
-              {errors.rating}
-            </p>
-          )}
+      <div style={{ marginBottom: "1rem" }}>
+        <label style={{ display: "block", marginBottom: "0.5rem" }}>Rating *</label>
+        <div style={{ display: "flex", gap: "0.35rem" }}>
+          {[1, 2, 3, 4, 5].map((star) => (
+            <button
+              key={star}
+              type="button"
+              onClick={() => setRating(star)}
+              onMouseEnter={() => setHoverRating(star)}
+              onMouseLeave={() => setHoverRating(0)}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "1.75rem",
+                lineHeight: "1",
+                color: (hoverRating || rating) >= star ? "var(--accent-gold)" : "var(--border-soft)"
+              }}
+              aria-label={`${star} stars`}
+            >
+              ★
+            </button>
+          ))}
         </div>
-
-        <div style={{ marginBottom: "1.5rem" }}>
-          <label htmlFor="review-comment" style={{ 
-            display: "block", 
-            marginBottom: "0.5rem", 
-            fontSize: "0.9rem", 
-            fontWeight: "500", 
-            color: "var(--text-main)" 
-          }}>
-            Your Review *
-          </label>
-          <textarea
-            id="review-comment"
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder="Share your experience with this driver..."
-            rows="5"
-            style={{
-              width: "100%",
-              padding: "0.75rem",
-              border: `1px solid ${errors.comment ? "#e74c3c" : "var(--border-soft)"}`,
-              borderRadius: "8px",
-              fontSize: "0.9rem",
-              fontFamily: "inherit",
-              resize: "vertical"
-            }}
-          />
-          {errors.comment && (
-            <p style={{ color: "#e74c3c", fontSize: "0.85rem", marginTop: "0.25rem" }}>
-              {errors.comment}
-            </p>
-          )}
-        </div>
-
-        <button
-          type="submit"
-          disabled={submitting}
-          className="btn btn-primary"
-          style={{ width: "100%" }}
-        >
-          {submitting ? "Submitting..." : "Submit Review"}
-        </button>
-      </form>
-    </div>
+        {errors.rating && <p style={{ color: "#e74c3c", fontSize: "0.85rem" }}>{errors.rating}</p>}
+      </div>
+      <div style={{ marginBottom: "1rem" }}>
+        <label style={{ display: "block", marginBottom: "0.5rem" }}>Your review *</label>
+        <textarea
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          rows={4}
+          style={{ width: "100%", padding: "0.75rem", borderRadius: "8px", border: "1px solid var(--border-soft)" }}
+        />
+        {errors.comment && <p style={{ color: "#e74c3c", fontSize: "0.85rem" }}>{errors.comment}</p>}
+      </div>
+      {errors.submit && <p style={{ color: "#e74c3c" }}>{errors.submit}</p>}
+      <button type="submit" className="btn btn-primary" disabled={submitting}>
+        {submitting ? "Submitting..." : "Submit Review"}
+      </button>
+    </form>
   );
 }
 
 export default DriverReviewForm;
-
-
-
-
-
-

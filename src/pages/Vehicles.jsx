@@ -93,16 +93,8 @@ function Vehicles() {
               <li className="cta-nav">
                 <Link 
                   className="btn btn-primary btn-compact" 
-                  to="/"
-                  onClick={() => {
-                    setNavOpen(false);
-                    setTimeout(() => {
-                      const contactSection = document.getElementById('contact');
-                      if (contactSection) {
-                        contactSection.scrollIntoView({ behavior: 'smooth' });
-                      }
-                    }, 100);
-                  }}
+                  to="/tours"
+                  onClick={() => setNavOpen(false)}
                 >
                   Book Now
                 </Link>

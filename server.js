@@ -81,7 +81,7 @@ app.use((error, req, res, next) => {
 
 // API Routes - with error handling
 let authRouter, toursRouter, guidesRouter, bookingsRouter, paymentsRouter;
-let driverRouter, adminRouter, memberRouter, simplyBookRouter;
+let driverRouter, adminRouter, memberRouter;
 
 try {
   authRouter = require('./api/auth');
@@ -125,7 +125,6 @@ paymentsRouter = loadRouter('./api/payments', 'Payments');
 driverRouter = loadRouter('./api/driver', 'Driver');
 adminRouter = loadRouter('./api/admin', 'Admin');
 memberRouter = loadRouter('./api/member', 'Member');
-simplyBookRouter = loadRouter('./api/simplybook', 'SimplyBook');
 
 // API info endpoint (helpful for testing)
 app.get('/api', (req, res) => {
@@ -152,7 +151,8 @@ app.get('/api', (req, res) => {
         create: 'POST /api/bookings'
       },
       payments: {
-        createSession: 'POST /api/payments/create-session',
+        createPayment: 'POST /api/payments/create-payment',
+        confirm: 'POST /api/payments/confirm',
         webhook: 'POST /api/payments/webhook'
       },
       admin: {
@@ -177,7 +177,6 @@ app.use('/api/tours', toursRouter);
 app.use('/api/guides', guidesRouter);
 app.use('/api/bookings', bookingsRouter);
 app.use('/api/payments', paymentsRouter);
-app.use('/api/simplybook', simplyBookRouter);
 
 // Protected routes (require authentication)
 app.use('/api/driver', driverRouter);

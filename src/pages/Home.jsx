@@ -156,7 +156,7 @@ function Home() {
                 </li>
               ))}
               <li className="cta-nav">
-                <a className="btn btn-primary" href="#contact" onClick={() => { scrollToSection("contact"); setNavOpen(false); }}>
+                <a className="btn btn-primary" href="/tours" onClick={() => setNavOpen(false)}>
                   Book Now
                 </a>
               </li>
@@ -179,11 +179,11 @@ function Home() {
               <span className="mobile-only">Private tours, transfers & experiences</span>
             </p>
             <div className="hero-actions">
-              <button className="btn btn-primary" onClick={() => scrollToSection("tours")}>
+              <Link to="/tours" className="btn btn-primary" onClick={() => window.scrollTo(0, 0)}>
+                Book Now
+              </Link>
+              <button className="btn btn-grey" onClick={() => scrollToSection("tours")}>
                 Explore Tours
-              </button>
-              <button className="btn btn-grey" onClick={() => scrollToSection("contact")}>
-                Book a Transfer
               </button>
             </div>
             <div className="hero-stats">

@@ -111,16 +111,8 @@ function Tours() {
               <li className="cta-nav">
                 <Link 
                   className="btn btn-primary btn-compact" 
-                  to="/"
-                  onClick={() => {
-                    setNavOpen(false);
-                    setTimeout(() => {
-                      const contactSection = document.getElementById('contact');
-                      if (contactSection) {
-                        contactSection.scrollIntoView({ behavior: 'smooth' });
-                      }
-                    }, 100);
-                  }}
+                  to="/tours"
+                  onClick={() => setNavOpen(false)}
                 >
                   Book Now
                 </Link>
@@ -182,9 +174,14 @@ function Tours() {
                   </div>
                   <div className="card-footer">
                     <span className="price">{tour.priceFrom}</span>
-                    <Link to={`/tours/${tour.id}`} className="btn btn-outline btn-compact" style={{ textDecoration: "none" }}>
-                      View Details
-                    </Link>
+                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                      <Link to={`/tours/${tour.id}/booking`} className="btn btn-primary btn-compact" style={{ textDecoration: "none" }}>
+                        Book Now
+                      </Link>
+                      <Link to={`/tours/${tour.id}`} className="btn btn-outline btn-compact" style={{ textDecoration: "none" }}>
+                        View Details
+                      </Link>
+                    </div>
                   </div>
                 </article>
               ))}

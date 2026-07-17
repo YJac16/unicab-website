@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AdminRouteGuard } from "./components/AdminRouteGuard";
 import { DriverRouteGuard } from "./components/DriverRouteGuard";
@@ -7,7 +7,6 @@ import Home from "./pages/Home";
 import Tours from "./pages/Tours";
 import TourDetail from "./pages/TourDetail";
 import TourBooking from "./pages/TourBooking";
-import TourBookingNew from "./pages/TourBookingNew";
 import DriverSelection from "./pages/DriverSelection";
 import TourTransaction from "./pages/TourTransaction";
 import TourCheckout from "./pages/TourCheckout";
@@ -26,8 +25,6 @@ import MemberRegister from "./pages/MemberRegister";
 import MemberDashboard from "./pages/MemberDashboard";
 import DriverDashboard from "./pages/DriverDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
-import Payments from "./pages/Payments";
-import Subscriptions from "./pages/Subscriptions";
 import AdminProfile from "./pages/AdminProfile";
 import DriverProfile from "./pages/DriverProfile";
 import MemberProfile from "./pages/MemberProfile";
@@ -38,7 +35,6 @@ import AuthCallback from "./pages/AuthCallback";
 import Unauthorized from "./pages/Unauthorized";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import PaymentFailed from "./pages/PaymentFailed";
-import SimplyBookBooking from "./pages/SimplyBookBooking";
 import BookingConfirmation from "./pages/BookingConfirmation";
 import CookieConsent from "./components/CookieConsent";
 import "./styles.css";
@@ -51,11 +47,15 @@ function App() {
         <Route path="/tours" element={<Tours />} />
         <Route path="/tours/:id" element={<TourDetail />} />
         <Route path="/tours/:id/booking" element={<TourBooking />} />
-        <Route path="/tours/:id/booking-new" element={<TourBookingNew />} />
         <Route path="/tours/:id/drivers" element={<DriverSelection />} />
         <Route path="/tours/:id/transaction" element={<TourTransaction />} />
         <Route path="/tours/:id/checkout" element={<TourCheckout />} />
         <Route path="/tours/:id/confirmation" element={<TourConfirmation />} />
+        {/* Unified Book Now entry → custom Supabase booking via tours */}
+        <Route path="/book" element={<Navigate to="/tours" replace />} />
+        <Route path="/booking-confirmation" element={<BookingConfirmation />} />
+        <Route path="/payment-success" element={<PaymentSuccess />} />
+        <Route path="/payment-failed" element={<PaymentFailed />} />
         <Route path="/vehicles" element={<Vehicles />} />
         <Route path="/drivers" element={<Drivers />} />
         <Route path="/reviews" element={<Reviews />} />
@@ -68,70 +68,17 @@ function App() {
         <Route path="/membership/comparison" element={<MembershipComparison />} />
         <Route path="/membership/transaction/:planId" element={<MembershipTransaction />} />
         <Route path="/membership/success" element={<MembershipSuccess />} />
-        <Route 
-          path="/admin/profile" 
-          element={
-            <AdminRouteGuard>
-              <AdminProfile />
-            </AdminRouteGuard>
-          } 
-        />
-        <Route 
-          path="/driver/profile" 
-          element={
-            <DriverRouteGuard>
-              <DriverProfile />
-            </DriverRouteGuard>
-          } 
-        />
-        <Route 
-          path="/member/profile" 
-          element={
-            <ProtectedRoute requiredRole="member">
-              <MemberProfile />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/driver/dashboard" 
-          element={
-            <DriverRouteGuard>
-              <DriverDashboard />
-            </DriverRouteGuard>
-          } 
-        />
-        <Route 
-          path="/admin/dashboard" 
-          element={
-            <AdminRouteGuard>
-              <AdminDashboard />
-            </AdminRouteGuard>
-          } 
-        />
-        <Route 
-          path="/admin" 
-          element={
-            <AdminRouteGuard>
-              <AdminDashboard />
-            </AdminRouteGuard>
-          } 
-        />
-        <Route 
-          path="/admin/reviews" 
-          element={
-            <AdminRouteGuard>
-              <AdminReviewModeration />
-            </AdminRouteGuard>
-          } 
-        />
+        <Route path="/admin/profile" element={<AdminRouteGuard><AdminProfile /></AdminRouteGuard>} />
+        <Route path="/driver/profile" element={<DriverRouteGuard><DriverProfile /></DriverRouteGuard>} />
+        <Route path="/member/profile" element={<ProtectedRoute requiredRole="member"><MemberProfile /></ProtectedRoute>} />
+        <Route path="/driver/dashboard" element={<DriverRouteGuard><DriverDashboard /></DriverRouteGuard>} />
+        <Route path="/admin/dashboard" element={<AdminRouteGuard><AdminDashboard /></AdminRouteGuard>} />
+        <Route path="/admin" element={<AdminRouteGuard><AdminDashboard /></AdminRouteGuard>} />
+        <Route path="/admin/reviews" element={<AdminRouteGuard><AdminReviewModeration /></AdminRouteGuard>} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/cookie-policy" element={<CookiePolicy />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route path="/payment-success" element={<PaymentSuccess />} />
-        <Route path="/payment-failed" element={<PaymentFailed />} />
-        <Route path="/book" element={<SimplyBookBooking />} />
-        <Route path="/booking-confirmation" element={<BookingConfirmation />} />
       </Routes>
       <CookieConsent />
     </BrowserRouter>

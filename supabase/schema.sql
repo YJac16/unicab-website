@@ -82,6 +82,11 @@ create table if not exists public.bookings (
   total_price numeric(10,2),
   status text not null default 'reserved'
     check (status in ('reserved','pending','confirmed','completed','cancelled')),
+  payment_status text default 'unpaid'
+    check (payment_status in ('unpaid', 'pending', 'paid', 'failed', 'refunded')),
+  payment_reference text,
+  yoco_checkout_id text,
+  paid_at timestamptz,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

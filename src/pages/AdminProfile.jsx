@@ -604,7 +604,7 @@ function AdminProfile() {
               }}>
                 <h2 style={{ fontSize: "1.2rem", marginBottom: "1rem" }}>Payments</h2>
                 <p style={{ color: "var(--text-soft)", marginBottom: "1rem" }}>
-                  View payments made to your account. Stripe integration coming soon.
+                  Customer payments are processed with YOCO Checkout. Booking payment status is managed in the Admin Dashboard.
                 </p>
                 <div style={{
                   padding: "2rem",
@@ -613,23 +613,11 @@ function AdminProfile() {
                   textAlign: "center",
                   color: "var(--text-soft)"
                 }}>
-                  <svg 
-                    width="48" 
-                    height="48" 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    strokeWidth="2"
-                    style={{ margin: "0 auto 1rem", opacity: 0.5 }}
-                  >
-                    <line x1="12" y1="1" x2="12" y2="23"></line>
-                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-                  </svg>
                   <p style={{ fontSize: "0.9rem", marginBottom: "0.5rem" }}>
-                    Stripe integration is not yet configured
+                    YOCO is the only payment gateway
                   </p>
                   <p style={{ fontSize: "0.85rem" }}>
-                    Payment history will be displayed here once Stripe is connected.
+                    View booking payment status under Admin → Bookings.
                   </p>
                 </div>
               </div>

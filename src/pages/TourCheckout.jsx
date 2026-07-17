@@ -1,68 +1,37 @@
 import React, { useState, useEffect } from "react";
 import { Link, useParams, useNavigate, useLocation } from "react-router-dom";
-import { createBooking, calculateTourPrice, createYocoPayment } from "../lib/api";
+import { createBooking, calculateTourPrice, createYocoPayment, formatTourPrice } from "../lib/api";
 import BackToTop from "../components/BackToTop";
 
 function TourCheckout() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const [navOpen, setNavOpen] = useState(false);
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
     email: "",
-    phone: "",
-    cardNumber: "",
-    expiryDate: "",
-    cvv: "",
-    cardName: "",
-    billingAddress: "",
-    city: "",
-    postalCode: "",
-    country: "South Africa"
+    phone: ""
   });
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [reserved, setReserved] = useState(false);
-  const [reservationId, setReservationId] = useState(null);
 
-  const { pax, date, time, tour, ...transactionData } = location.state || {};
+  const { pax, date, time, tour, drivers, driver } = location.state || {};
+  const selectedDriver = drivers?.[0] || driver || null;
 
   useEffect(() => {
     if (!pax || !date || !tour) {
-      navigate(`/tours/${id}`);
-      return;
+      navigate(`/tours/${id}/booking`);
     }
-    
-    // Pre-fill form if coming from transaction page
-    if (transactionData.firstName) {
-      setFormData({
-        firstName: transactionData.firstName || "",
-        lastName: transactionData.lastName || "",
-        email: transactionData.email || "",
-        phone: transactionData.phone || "",
-        cardNumber: transactionData.cardNumber || "",
-        expiryDate: transactionData.expiryDate || "",
-        cvv: transactionData.cvv || "",
-        cardName: transactionData.cardName || "",
-        billingAddress: transactionData.billingAddress || "",
-        city: transactionData.city || "",
-        postalCode: transactionData.postalCode || "",
-        country: transactionData.country || "South Africa"
-      });
-    }
-  }, [pax, date, tour, id, navigate, transactionData]);
+  }, [pax, date, tour, id, navigate]);
 
   if (!pax || !date || !tour) return null;
 
   const pricePerPerson = calculateTourPrice(tour, pax);
   const totalPrice = pricePerPerson * pax;
 
-  const validate = (requirePayment = false) => {
+  const validate = () => {
     const newErrors = {};
-    
     if (!formData.firstName.trim()) newErrors.firstName = "First name is required";
     if (!formData.lastName.trim()) newErrors.lastName = "Last name is required";
     if (!formData.email.trim()) {
@@ -71,176 +40,67 @@ function TourCheckout() {
       newErrors.email = "Invalid email format";
     }
     if (!formData.phone.trim()) newErrors.phone = "Phone number is required";
-    
-    // Only validate payment fields if payment is required
-    if (requirePayment) {
-      if (!formData.cardNumber.trim()) {
-        newErrors.cardNumber = "Card number is required";
-      } else if (!/^\d{13,19}$/.test(formData.cardNumber.replace(/\s/g, ""))) {
-        newErrors.cardNumber = "Invalid card number";
-      }
-      if (!formData.expiryDate.trim()) {
-        newErrors.expiryDate = "Expiry date is required";
-      } else if (!/^\d{2}\/\d{2}$/.test(formData.expiryDate)) {
-        newErrors.expiryDate = "Format: MM/YY";
-      }
-      if (!formData.cvv.trim()) {
-        newErrors.cvv = "CVV is required";
-      } else if (!/^\d{3,4}$/.test(formData.cvv)) {
-        newErrors.cvv = "Invalid CVV";
-      }
-      if (!formData.cardName.trim()) newErrors.cardName = "Cardholder name is required";
-      if (!formData.billingAddress.trim()) newErrors.billingAddress = "Billing address is required";
-      if (!formData.city.trim()) newErrors.city = "City is required";
-      if (!formData.postalCode.trim()) newErrors.postalCode = "Postal code is required";
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const sendConfirmationEmail = async (booking) => {
-    // In a real app, this would call your backend API to send an email
-    // For now, we'll simulate it and store the booking
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Store booking in localStorage
-      const bookings = JSON.parse(localStorage.getItem("unicab_bookings") || "[]");
-      bookings.push(booking);
-      localStorage.setItem("unicab_bookings", JSON.stringify(bookings));
-
-      // In production, you would call your email API here
-      // await fetch('/api/send-booking-confirmation', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ booking, email: formData.email })
-      // });
-      
-      return true;
-    } catch (error) {
-      console.error("Error sending confirmation email:", error);
-      return false;
-    }
-  };
-
-  const handleReserve = async (e) => {
+  const handlePayWithYoco = async (e) => {
     e.preventDefault();
-    if (!validate(false)) return; // Don't require payment for reservation
+    if (!validate()) return;
+    if (!totalPrice || totalPrice <= 0) {
+      alert("Unable to calculate price for this group size. Please contact us.");
+      return;
+    }
 
     setSubmitting(true);
 
     try {
-      // Check if user is logged in as member
-      const { supabase } = await import('../lib/supabase');
-      const { data: { session } } = await supabase.auth.getSession();
       let userId = null;
-      if (session?.user) {
-        userId = session.user.id;
+      try {
+        const { supabase } = await import("../lib/supabase");
+        const { data: { session } } = await supabase.auth.getSession();
+        userId = session?.user?.id || null;
+      } catch {
+        // guest checkout
       }
 
-      // Create reservation via API
-      // ADMIN ONLY - Driver assignment handled internally, not customer-facing
-      const tourId = tour.id;
-
       const bookingData = {
-        tour_id: tourId,
-        // driver_id removed - ADMIN ONLY, not customer-facing
-        user_id: userId, // Link to member account if logged in
-        customer_name: `${formData.firstName} ${formData.lastName}`,
+        tour_id: tour.id,
+        driver_id: selectedDriver?.id || selectedDriver?.driver_id || null,
+        user_id: userId,
+        customer_name: `${formData.firstName} ${formData.lastName}`.trim(),
         customer_email: formData.email,
-        customer_phone: formData.phone || null,
-        date: date,
+        customer_phone: formData.phone,
+        date,
         time: time || null,
         group_size: pax,
         price_per_person: pricePerPerson,
         total_price: totalPrice,
-        status: 'reserved', // Reservation status - not finalized until payment
-        special_requests: null
+        status: "reserved"
       };
 
       const { data: booking, error } = await createBooking(bookingData);
-
-      if (error) {
-        console.error('Error creating reservation:', error);
-        alert('Failed to create reservation. Please try again.');
+      if (error || !booking?.id) {
+        alert(error?.message || error?.error || "Failed to create booking. Please try again.");
         setSubmitting(false);
         return;
       }
 
-      setReservationId(booking.id);
-      setReserved(true);
-      setSubmitting(false);
-    } catch (error) {
-      console.error('Error in reservation submission:', error);
-      alert('An error occurred. Please try again.');
-      setSubmitting(false);
-    }
-  };
-
-  const handlePayment = async (e) => {
-    e.preventDefault();
-    if (!validate(true)) return; // Require payment fields
-
-    setSubmitting(true);
-
-    try {
-      // Convert total price to cents for Yoco API
       const amountInCents = Math.round(totalPrice * 100);
-      
-      // Create booking reference from reservation ID or generate one
-      const bookingRef = reservationId || `booking-${Date.now()}`;
+      const { data: payment, error: paymentError } = await createYocoPayment(amountInCents, booking.id);
 
-      // Call Yoco payment API
-      const { data, error } = await createYocoPayment(amountInCents, bookingRef);
-
-      if (error) {
-        console.error('Error creating payment:', error);
-        alert(error.message || 'Failed to initiate payment. Please try again.');
+      if (paymentError || !(payment?.redirectUrl || payment?.data?.redirectUrl)) {
+        alert(paymentError?.message || "Failed to start YOCO checkout. Please try again.");
         setSubmitting(false);
         return;
       }
 
-      if (data && data.redirectUrl) {
-        // Redirect to Yoco checkout
-        window.location.href = data.redirectUrl;
-      } else {
-        throw new Error('No redirect URL received from payment gateway');
-      }
+      window.location.href = payment.redirectUrl || payment.data.redirectUrl;
     } catch (error) {
-      console.error('Error processing payment:', error);
-      alert('An error occurred processing payment. Please try again.');
+      console.error("Checkout error:", error);
+      alert("An error occurred. Please try again.");
       setSubmitting(false);
     }
-  };
-
-  const formatCardNumber = (value) => {
-    const v = value.replace(/\s+/g, "").replace(/[^0-9]/gi, "");
-    const matches = v.match(/\d{4,16}/g);
-    const match = (matches && matches[0]) || "";
-    const parts = [];
-    for (let i = 0, len = match.length; i < len; i += 4) {
-      parts.push(match.substring(i, i + 4));
-    }
-    if (parts.length) {
-      return parts.join(" ");
-    } else {
-      return v;
-    }
-  };
-
-  const handleCardNumberChange = (e) => {
-    const formatted = formatCardNumber(e.target.value);
-    setFormData({ ...formData, cardNumber: formatted });
-  };
-
-  const handleExpiryChange = (e) => {
-    let value = e.target.value.replace(/\D/g, "");
-    if (value.length >= 2) {
-      value = value.substring(0, 2) + "/" + value.substring(2, 4);
-    }
-    setFormData({ ...formData, expiryDate: value });
   };
 
   return (
@@ -250,479 +110,129 @@ function TourCheckout() {
           <Link to="/" className="logo" aria-label="UNICAB Travel & Tours - Home">
             <img src="/logo-white.png" alt="UNICAB Travel & Tours" className="logo-img" />
           </Link>
-
-          <button
-            className="nav-toggle"
-            aria-label="Toggle navigation"
-            aria-expanded={navOpen}
-            onClick={() => setNavOpen((o) => !o)}
-          >
-            <span className="nav-toggle-bar" />
-            <span className="nav-toggle-bar" />
-          </button>
-
-          <nav className={`main-nav ${navOpen ? "open" : ""}`} aria-label="Primary">
-            <ul>
-              <li>
-                <Link className="link-button" to="/" onClick={() => setNavOpen(false)}>
-                  Home
-                </Link>
-              </li>
-              <li>
-                <Link className="link-button" to="/tours" onClick={() => setNavOpen(false)}>
-                  Tours
-                </Link>
-              </li>
-            </ul>
-          </nav>
         </div>
       </header>
 
       <main>
         <section className="section" style={{ paddingTop: "8rem", paddingBottom: "4rem" }}>
           <div className="container">
-            <div style={{ maxWidth: "900px", margin: "0 auto" }}>
-              <Link 
-                to={`/tours/${id}`}
-                className="btn btn-outline" 
-                style={{ marginBottom: "2rem", textDecoration: "none" }}
-              >
-                ← Back to Tour
+            <div style={{ maxWidth: "800px", margin: "0 auto" }}>
+              <Link to={`/tours/${id}/booking`} className="btn btn-outline" style={{ marginBottom: "2rem", textDecoration: "none" }}>
+                ← Back
               </Link>
 
-              {/* Booking Summary */}
-              <div style={{ 
-                background: "var(--bg-soft)", 
-                padding: "2rem", 
+              <div style={{
+                background: "var(--bg-soft)",
+                padding: "2rem",
                 borderRadius: "12px",
                 marginBottom: "2rem",
                 border: "1px solid var(--border-soft)"
               }}>
-                <h2 style={{ marginTop: 0, marginBottom: "1rem" }}>Booking Summary</h2>
+                <h2 style={{ marginTop: 0 }}>Review Booking</h2>
                 <div style={{ display: "grid", gap: "0.75rem" }}>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: "var(--text-soft)" }}>Tour:</span>
+                    <span style={{ color: "var(--text-soft)" }}>Tour</span>
                     <strong>{tour.name}</strong>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: "var(--text-soft)" }}>Date:</span>
-                    <strong>{new Date(date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</strong>
+                    <span style={{ color: "var(--text-soft)" }}>Date</span>
+                    <strong>{new Date(date).toLocaleDateString("en-ZA", { year: "numeric", month: "long", day: "numeric" })}</strong>
+                  </div>
+                  {time && (
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ color: "var(--text-soft)" }}>Start time</span>
+                      <strong>{time}</strong>
+                    </div>
+                  )}
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "var(--text-soft)" }}>Guests</span>
+                    <strong>{pax}</strong>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: "var(--text-soft)" }}>Group Size:</span>
-                    <strong>{pax} {pax === 1 ? "person" : "people"}</strong>
+                    <span style={{ color: "var(--text-soft)" }}>Price per person</span>
+                    <strong>{formatTourPrice(pricePerPerson)}</strong>
                   </div>
-                  {/* ADMIN ONLY - Driver assignment handled internally, not customer-facing */}
-                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: "0.5rem", paddingTop: "0.75rem", borderTop: "1px solid var(--border-soft)" }}>
-                    <span style={{ color: "var(--text-soft)" }}>Price per person:</span>
-                    <strong>R{pricePerPerson.toLocaleString()}</strong>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "1.2rem", fontWeight: "700", color: "var(--accent-gold)", marginTop: "0.5rem", paddingTop: "0.75rem", borderTop: "2px solid var(--border-soft)" }}>
-                    <span>Total:</span>
-                    <span>R{totalPrice.toLocaleString()}</span>
+                  <div style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    paddingTop: "0.75rem",
+                    borderTop: "2px solid var(--border-soft)",
+                    color: "var(--accent-gold)",
+                    fontSize: "1.2rem",
+                    fontWeight: 700
+                  }}>
+                    <span>Total</span>
+                    <span>{formatTourPrice(totalPrice)}</span>
                   </div>
                 </div>
               </div>
 
-              {success ? (
+              <form onSubmit={handlePayWithYoco}>
                 <div style={{
-                  textAlign: "center",
-                  padding: "3rem",
-                  background: "var(--accent-teal)",
-                  color: "white",
-                  borderRadius: "12px"
+                  background: "white",
+                  padding: "2rem",
+                  borderRadius: "12px",
+                  border: "1px solid var(--border-soft)",
+                  marginBottom: "1.5rem"
                 }}>
-                  <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>✓</div>
-                  <h2 style={{ marginBottom: "1rem" }}>Processing Payment...</h2>
-                  <p>Redirecting to confirmation...</p>
-                </div>
-              ) : reserved ? (
-                <div>
-                  {/* Reservation Success Message */}
-                  <div style={{
-                    background: "#d1ecf1",
-                    border: "2px solid #0c5460",
-                    borderRadius: "12px",
-                    padding: "2rem",
-                    marginBottom: "2rem",
-                    textAlign: "center"
-                  }}>
-                    <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>✓</div>
-                    <h2 style={{ marginTop: 0, marginBottom: "1rem", color: "#0c5460" }}>
-                      Reservation Created Successfully!
-                    </h2>
-                    <p style={{ fontSize: "1.1rem", color: "#0c5460", marginBottom: "1.5rem" }}>
-                      Your booking has been reserved, but is <strong>not finalized</strong> until payment is secured.
-                    </p>
-                    <div style={{
-                      background: "#fff3cd",
-                      border: "1px solid #ffc107",
-                      borderRadius: "8px",
-                      padding: "1rem",
-                      marginBottom: "1.5rem"
-                    }}>
-                      <p style={{ margin: 0, color: "#856404", fontWeight: "500" }}>
-                        ⚠️ <strong>Important:</strong> This reservation will expire if payment is not completed. 
-                        Please proceed to payment to finalize your booking.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Payment Form */}
-                  <form onSubmit={handlePayment}>
-                    <div style={{ 
-                      background: "white", 
-                      padding: "2rem", 
-                      borderRadius: "12px",
-                      border: "1px solid var(--border-soft)",
-                      marginBottom: "2rem"
-                    }}>
-                      <h3 style={{ marginTop: 0, marginBottom: "1.5rem" }}>Complete Payment to Finalize Booking</h3>
-                      
-                      {/* Payment Information */}
-                      <div style={{ marginBottom: "1rem" }}>
-                    
-                    <div style={{ marginBottom: "1rem" }}>
-                      <label htmlFor="payment-card-number" style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
-                        Card Number *
-                      </label>
-                      <input
-                        type="text"
-                        id="payment-card-number"
-                        name="payment-card-number"
-                        autoComplete="cc-number"
-                        value={formData.cardNumber}
-                        onChange={handleCardNumberChange}
-                        placeholder="1234 5678 9012 3456"
-                        maxLength="19"
-                        style={{
-                          width: "100%",
-                          padding: "0.75rem",
-                          border: `1px solid ${errors.cardNumber ? "#e74c3c" : "var(--border-soft)"}`,
-                          borderRadius: "8px",
-                          fontSize: "0.9rem"
-                        }}
-                      />
-                      {errors.cardNumber && <p style={{ color: "#e74c3c", fontSize: "0.85rem", marginTop: "0.25rem" }}>{errors.cardNumber}</p>}
-                    </div>
-
-                    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-                      <div>
-                        <label htmlFor="payment-card-name" style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
-                          Cardholder Name *
-                        </label>
-                        <input
-                          type="text"
-                          id="payment-card-name"
-                          name="payment-card-name"
-                          autoComplete="cc-name"
-                          value={formData.cardName}
-                          onChange={(e) => setFormData({ ...formData, cardName: e.target.value })}
-                          style={{
-                            width: "100%",
-                            padding: "0.75rem",
-                            border: `1px solid ${errors.cardName ? "#e74c3c" : "var(--border-soft)"}`,
-                            borderRadius: "8px",
-                            fontSize: "0.9rem"
-                          }}
-                        />
-                        {errors.cardName && <p style={{ color: "#e74c3c", fontSize: "0.85rem", marginTop: "0.25rem" }}>{errors.cardName}</p>}
-                      </div>
-                      <div>
-                        <label htmlFor="payment-expiry" style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
-                          Expiry (MM/YY) *
-                        </label>
-                        <input
-                          type="text"
-                          id="payment-expiry"
-                          name="payment-expiry"
-                          autoComplete="cc-exp"
-                          value={formData.expiryDate}
-                          onChange={handleExpiryChange}
-                          placeholder="12/25"
-                          maxLength="5"
-                          style={{
-                            width: "100%",
-                            padding: "0.75rem",
-                            border: `1px solid ${errors.expiryDate ? "#e74c3c" : "var(--border-soft)"}`,
-                            borderRadius: "8px",
-                            fontSize: "0.9rem"
-                          }}
-                        />
-                        {errors.expiryDate && <p style={{ color: "#e74c3c", fontSize: "0.85rem", marginTop: "0.25rem" }}>{errors.expiryDate}</p>}
-                      </div>
-                      <div>
-                        <label htmlFor="payment-cvv" style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
-                          CVV *
-                        </label>
-                        <input
-                          type="text"
-                          id="payment-cvv"
-                          name="payment-cvv"
-                          autoComplete="cc-csc"
-                          value={formData.cvv}
-                          onChange={(e) => setFormData({ ...formData, cvv: e.target.value.replace(/\D/g, "").substring(0, 4) })}
-                          placeholder="123"
-                          maxLength="4"
-                          style={{
-                            width: "100%",
-                            padding: "0.75rem",
-                            border: `1px solid ${errors.cvv ? "#e74c3c" : "var(--border-soft)"}`,
-                            borderRadius: "8px",
-                            fontSize: "0.9rem"
-                          }}
-                        />
-                        {errors.cvv && <p style={{ color: "#e74c3c", fontSize: "0.85rem", marginTop: "0.25rem" }}>{errors.cvv}</p>}
-                      </div>
-                    </div>
-
-                    <div style={{ marginBottom: "1rem" }}>
-                      <label htmlFor="payment-billing-address" style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
-                        Billing Address *
-                      </label>
-                      <input
-                        type="text"
-                        id="payment-billing-address"
-                        name="payment-billing-address"
-                        autoComplete="street-address"
-                        value={formData.billingAddress}
-                        onChange={(e) => setFormData({ ...formData, billingAddress: e.target.value })}
-                        style={{
-                          width: "100%",
-                          padding: "0.75rem",
-                          border: `1px solid ${errors.billingAddress ? "#e74c3c" : "var(--border-soft)"}`,
-                          borderRadius: "8px",
-                          fontSize: "0.9rem"
-                        }}
-                      />
-                      {errors.billingAddress && <p style={{ color: "#e74c3c", fontSize: "0.85rem", marginTop: "0.25rem" }}>{errors.billingAddress}</p>}
-                    </div>
-
-                    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: "1rem" }}>
-                      <div>
-                        <label htmlFor="payment-city" style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
-                          City *
-                        </label>
-                        <input
-                          type="text"
-                          id="payment-city"
-                          name="payment-city"
-                          autoComplete="address-level2"
-                          value={formData.city}
-                          onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                          style={{
-                            width: "100%",
-                            padding: "0.75rem",
-                            border: `1px solid ${errors.city ? "#e74c3c" : "var(--border-soft)"}`,
-                            borderRadius: "8px",
-                            fontSize: "0.9rem"
-                          }}
-                        />
-                        {errors.city && <p style={{ color: "#e74c3c", fontSize: "0.85rem", marginTop: "0.25rem" }}>{errors.city}</p>}
-                      </div>
-                      <div>
-                        <label htmlFor="payment-postal-code" style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
-                          Postal Code *
-                        </label>
-                        <input
-                          type="text"
-                          id="payment-postal-code"
-                          name="payment-postal-code"
-                          autoComplete="postal-code"
-                          value={formData.postalCode}
-                          onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
-                          style={{
-                            width: "100%",
-                            padding: "0.75rem",
-                            border: `1px solid ${errors.postalCode ? "#e74c3c" : "var(--border-soft)"}`,
-                            borderRadius: "8px",
-                            fontSize: "0.9rem"
-                          }}
-                        />
-                        {errors.postalCode && <p style={{ color: "#e74c3c", fontSize: "0.85rem", marginTop: "0.25rem" }}>{errors.postalCode}</p>}
-                      </div>
-                      <div>
-                        <label htmlFor="payment-country" style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
-                          Country *
-                        </label>
-                        <input
-                          type="text"
-                          id="payment-country"
-                          name="payment-country"
-                          autoComplete="country"
-                          value={formData.country}
-                          readOnly
-                          style={{
-                            width: "100%",
-                            padding: "0.75rem",
-                            border: "1px solid var(--border-soft)",
-                            borderRadius: "8px",
-                            fontSize: "0.9rem",
-                            background: "var(--bg-soft)"
-                          }}
-                        />
-                      </div>
-                    </div>
-                      </div>
-
-                      <button
-                        type="submit"
-                        disabled={submitting}
-                        className="btn btn-primary"
-                        style={{ 
-                          width: "100%", 
-                          fontSize: "1.1rem", 
-                          padding: "1rem"
-                        }}
-                      >
-                        {submitting ? "Redirecting to Payment..." : "Pay with Card"}
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              ) : (
-                <form onSubmit={handleReserve}>
-                  {/* Personal Information Only for Reservation */}
-                  <div style={{ 
-                    background: "white", 
-                    padding: "2rem", 
-                    borderRadius: "12px",
-                    border: "1px solid var(--border-soft)",
-                    marginBottom: "2rem"
-                  }}>
-                    <h3 style={{ marginTop: 0, marginBottom: "1.5rem" }}>Reserve Your Booking</h3>
-                    
-                    <div style={{
-                      background: "#d1ecf1",
-                      border: "1px solid #0c5460",
-                      borderRadius: "8px",
-                      padding: "1rem",
-                      marginBottom: "1.5rem"
-                    }}>
-                      <p style={{ margin: 0, color: "#0c5460", fontSize: "0.9rem" }}>
-                        <strong>Note:</strong> Your booking will be reserved but <strong>not finalized</strong> until payment is secured. 
-                        You'll be prompted to complete payment after reservation.
-                      </p>
-                    </div>
-                    
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-                      <div>
-                        <label htmlFor="reserve-first-name" style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
-                          First Name *
-                        </label>
-                        <input
-                          type="text"
-                          id="reserve-first-name"
-                          name="reserve-first-name"
-                          autoComplete="given-name"
-                          value={formData.firstName}
-                          onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                          style={{
-                            width: "100%",
-                            padding: "0.75rem",
-                            border: `1px solid ${errors.firstName ? "#e74c3c" : "var(--border-soft)"}`,
-                            borderRadius: "8px",
-                            fontSize: "0.9rem"
-                          }}
-                        />
-                        {errors.firstName && <p style={{ color: "#e74c3c", fontSize: "0.85rem", marginTop: "0.25rem" }}>{errors.firstName}</p>}
-                      </div>
-                      <div>
-                        <label htmlFor="reserve-last-name" style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
-                          Last Name *
-                        </label>
-                        <input
-                          type="text"
-                          id="reserve-last-name"
-                          name="reserve-last-name"
-                          autoComplete="family-name"
-                          value={formData.lastName}
-                          onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                          style={{
-                            width: "100%",
-                            padding: "0.75rem",
-                            border: `1px solid ${errors.lastName ? "#e74c3c" : "var(--border-soft)"}`,
-                            borderRadius: "8px",
-                            fontSize: "0.9rem"
-                          }}
-                        />
-                        {errors.lastName && <p style={{ color: "#e74c3c", fontSize: "0.85rem", marginTop: "0.25rem" }}>{errors.lastName}</p>}
-                      </div>
-                    </div>
-
-                    <div style={{ marginBottom: "1rem" }}>
-                      <label htmlFor="reserve-email" style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
-                        Email Address *
-                      </label>
-                      <input
-                        type="email"
-                        id="reserve-email"
-                        name="reserve-email"
-                        autoComplete="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        style={{
-                          width: "100%",
-                          padding: "0.75rem",
-                          border: `1px solid ${errors.email ? "#e74c3c" : "var(--border-soft)"}`,
-                          borderRadius: "8px",
-                          fontSize: "0.9rem"
-                        }}
-                      />
-                      {errors.email && <p style={{ color: "#e74c3c", fontSize: "0.85rem", marginTop: "0.25rem" }}>{errors.email}</p>}
-                    </div>
-
+                  <h3 style={{ marginTop: 0 }}>Your Details</h3>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                     <div>
-                      <label htmlFor="reserve-phone" style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: "500" }}>
-                        Phone Number *
-                      </label>
+                      <label>First name *</label>
                       <input
-                        type="tel"
-                        id="reserve-phone"
-                        name="reserve-phone"
-                        autoComplete="tel"
-                        value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        placeholder="+27 82 123 4567"
-                        style={{
-                          width: "100%",
-                          padding: "0.75rem",
-                          border: `1px solid ${errors.phone ? "#e74c3c" : "var(--border-soft)"}`,
-                          borderRadius: "8px",
-                          fontSize: "0.9rem"
-                        }}
+                        value={formData.firstName}
+                        onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                        style={{ width: "100%", padding: "0.75rem", marginTop: "0.35rem", borderRadius: "8px", border: "1px solid var(--border-soft)" }}
                       />
-                      {errors.phone && <p style={{ color: "#e74c3c", fontSize: "0.85rem", marginTop: "0.25rem" }}>{errors.phone}</p>}
+                      {errors.firstName && <p style={{ color: "#e74c3c", fontSize: "0.85rem" }}>{errors.firstName}</p>}
+                    </div>
+                    <div>
+                      <label>Last name *</label>
+                      <input
+                        value={formData.lastName}
+                        onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                        style={{ width: "100%", padding: "0.75rem", marginTop: "0.35rem", borderRadius: "8px", border: "1px solid var(--border-soft)" }}
+                      />
+                      {errors.lastName && <p style={{ color: "#e74c3c", fontSize: "0.85rem" }}>{errors.lastName}</p>}
                     </div>
                   </div>
+                  <div style={{ marginTop: "1rem" }}>
+                    <label>Email *</label>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      style={{ width: "100%", padding: "0.75rem", marginTop: "0.35rem", borderRadius: "8px", border: "1px solid var(--border-soft)" }}
+                    />
+                    {errors.email && <p style={{ color: "#e74c3c", fontSize: "0.85rem" }}>{errors.email}</p>}
+                  </div>
+                  <div style={{ marginTop: "1rem" }}>
+                    <label>Phone *</label>
+                    <input
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      style={{ width: "100%", padding: "0.75rem", marginTop: "0.35rem", borderRadius: "8px", border: "1px solid var(--border-soft)" }}
+                    />
+                    {errors.phone && <p style={{ color: "#e74c3c", fontSize: "0.85rem" }}>{errors.phone}</p>}
+                  </div>
+                </div>
 
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="btn btn-primary"
-                    style={{ 
-                      width: "100%", 
-                      fontSize: "1.1rem", 
-                      padding: "1rem"
-                    }}
-                  >
-                    {submitting ? "Reserving..." : "Reserve Booking"}
-                  </button>
+                <p style={{ color: "var(--text-soft)", fontSize: "0.9rem", marginBottom: "1rem" }}>
+                  You will be redirected to YOCO Checkout to pay securely. Your booking is confirmed after payment succeeds.
+                </p>
 
-                  <p style={{ textAlign: "center", fontSize: "0.85rem", color: "var(--text-soft)", marginTop: "1rem" }}>
-                    Your booking will be reserved with status "RESERVED" and is not finalized until payment is secured.
-                  </p>
-                </form>
-              )}
+                <button type="submit" className="btn btn-primary" disabled={submitting} style={{ width: "100%", padding: "1rem", fontSize: "1.05rem" }}>
+                  {submitting ? "Creating booking..." : `Book Now — Pay ${formatTourPrice(totalPrice)} with YOCO`}
+                </button>
+              </form>
             </div>
           </div>
         </section>
       </main>
-
       <BackToTop />
     </div>
   );
 }
 
 export default TourCheckout;
-

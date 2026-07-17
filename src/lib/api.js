@@ -279,6 +279,7 @@ export const createBooking = async (bookingData) => {
   const backendPayload = {
     tour_id: bookingData.tour_id || bookingData.tourId,
     guide_id: bookingData.guide_id || bookingData.guideId || bookingData.driver_id || bookingData.driverId,
+    driver_id: bookingData.driver_id || bookingData.driverId || bookingData.guide_id || bookingData.guideId,
     booking_date: bookingData.date || bookingData.booking_date,
     booking_time: bookingData.time || bookingData.booking_time || null,
     group_size: bookingData.group_size || bookingData.pax,
@@ -286,8 +287,10 @@ export const createBooking = async (bookingData) => {
     customer_email: bookingData.customer_email || bookingData.customerEmail || bookingData.email,
     customer_phone: bookingData.customer_phone || bookingData.customerPhone || bookingData.phone,
     special_requests: bookingData.special_requests || bookingData.specialRequests,
-    status: bookingData.status || 'reserved', // Pass status to backend
-    user_id: bookingData.user_id || null, // Will be set by backend if member is logged in
+    price_per_person: bookingData.price_per_person || bookingData.pricePerPerson || 0,
+    total_price: bookingData.total_price || bookingData.totalPrice || 0,
+    status: bookingData.status || 'reserved',
+    user_id: bookingData.user_id || null,
   };
 
   // Use apiCall with auth header if token exists
@@ -540,20 +543,18 @@ export const getReviews = async (filters = {}) => {
   return { data, error };
 };
 
-// Payments API (stub for Stripe integration)
-export const createPaymentSession = async (bookingId, amount, currency = 'zar') => {
-  return apiCall('/api/payments/create-session', {
-    method: 'POST',
-    body: JSON.stringify({ booking_id: bookingId, amount, currency }),
-  });
-};
-
-// Yoco PayGate payment creation
-// Creates a Yoco checkout and returns redirectUrl
+// YOCO payment only
 export const createYocoPayment = async (amount, bookingRef) => {
   return apiCall('/api/payments/create-payment', {
     method: 'POST',
-    body: JSON.stringify({ amount, bookingRef }),
+    body: JSON.stringify({ amount, bookingRef, booking_id: bookingRef }),
+  });
+};
+
+export const confirmYocoPayment = async (bookingRef) => {
+  return apiCall('/api/payments/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ bookingRef, booking_id: bookingRef }),
   });
 };
 
@@ -1111,55 +1112,6 @@ export const getMemberBookings = async () => {
   return memberApiCall('/api/member/bookings');
 };
 
-// SimplyBook API functions
-export const getSimplyBookServices = async () => {
-  return apiCall('/api/simplybook/services');
-};
-
-export const getSimplyBookAvailability = async (serviceId, date, unitId = null) => {
-  const params = new URLSearchParams({ serviceId, date });
-  if (unitId) params.append('unitId', unitId);
-  return apiCall(`/api/simplybook/availability?${params.toString()}`);
-};
-
-export const createSimplyBookBooking = async (bookingData) => {
-  return apiCall('/api/simplybook/create-booking', {
-    method: 'POST',
-    body: JSON.stringify(bookingData),
-  });
-};
-
-export const getSimplyBookBooking = async (bookingId) => {
-  return apiCall(`/api/simplybook/booking/${bookingId}`);
-};
-
-export const verifySimplyBookBooking = async (bookingId, clientEmail) => {
-  return apiCall('/api/simplybook/verify-booking', {
-    method: 'POST',
-    body: JSON.stringify({ bookingId, clientEmail }),
-  });
-};
-
-// SimplyBook Reviews API
-export const getSimplyBookReviews = async (filters = {}) => {
-  const params = new URLSearchParams();
-  if (filters.serviceId) params.append('serviceId', filters.serviceId);
-  if (filters.unitId) params.append('unitId', filters.unitId);
-  if (filters.bookingId) params.append('bookingId', filters.bookingId);
-  
-  const queryString = params.toString();
-  const endpoint = queryString ? `/api/simplybook/reviews?${queryString}` : '/api/simplybook/reviews';
-  
-  return apiCall(endpoint);
-};
-
-export const submitSimplyBookReview = async (reviewData) => {
-  return apiCall('/api/simplybook/submit-review', {
-    method: 'POST',
-    body: JSON.stringify(reviewData),
-  });
-};
-
 // Registration API (public)
 export const register = async (userData) => {
   return apiCall('/api/auth/register', {
@@ -1168,7 +1120,7 @@ export const register = async (userData) => {
   });
 };
 
-// Reviews API - New review tables
+// Reviews API - Supabase review tables
 export const getTourReviews = async (tourId) => {
   if (!isSupabaseConfigured()) {
     return { data: [], error: null };
@@ -1241,6 +1193,76 @@ export const getDriverReviewStats = async (driverId) => {
     : 0;
   
   return { data: { average, count }, error: null };
+};
+
+export const verifyCustomerBooking = async (bookingId, userId) => {
+  if (!isSupabaseConfigured() || !bookingId || !userId) {
+    return { data: { exists: false, completed: false }, error: null };
+  }
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('id, status, payment_status, user_id')
+    .eq('id', bookingId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) return { data: { exists: false, completed: false }, error };
+
+  const completed =
+    data &&
+    (data.status === 'confirmed' || data.status === 'completed' || data.payment_status === 'paid');
+
+  return {
+    data: {
+      exists: !!data,
+      completed: !!completed,
+      booking: data || null
+    },
+    error: null
+  };
+};
+
+export const submitTourReview = async ({ tourId, bookingId, userId, rating, comment }) => {
+  if (!isSupabaseConfigured()) {
+    return { data: null, error: { message: 'Supabase not configured' } };
+  }
+
+  const { data, error } = await supabase
+    .from('tour_reviews')
+    .insert({
+      tour_id: tourId,
+      booking_id: bookingId || null,
+      user_id: userId,
+      rating,
+      comment: comment.trim(),
+      approved: false
+    })
+    .select()
+    .single();
+
+  return { data, error };
+};
+
+export const submitDriverReview = async ({ driverId, bookingId, userId, rating, comment }) => {
+  if (!isSupabaseConfigured()) {
+    return { data: null, error: { message: 'Supabase not configured' } };
+  }
+
+  const { data, error } = await supabase
+    .from('driver_reviews')
+    .insert({
+      driver_id: driverId,
+      booking_id: bookingId || null,
+      user_id: userId,
+      rating,
+      comment: comment.trim(),
+      approved: false
+    })
+    .select()
+    .single();
+
+  return { data, error };
 };
 
 // Admin Review Moderation API

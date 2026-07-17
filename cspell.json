@@ -16,8 +16,8 @@
     "gen_random_uuid",
     "uuid_generate_v4",
     "PostgREST",
-    "SimplyBook",
     "Yoco",
+    "YOCO",
     "Unicab"
   ],
   "ignorePaths": [

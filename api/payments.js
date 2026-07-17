@@ -1,156 +1,20 @@
-// Payments API Routes
-// Yoco PayGate integration for online payments
-// YOCO ONLY - Stripe/PayFast removed, not customer-facing
-
+// Payments API — YOCO Checkout only
 const express = require('express');
 const router = express.Router();
+const { getSupabaseAdmin, isSupabaseConfigured } = require('../lib/supabaseAdmin');
 
-// Environment variables
-// YOCO_SECRET_KEY - Yoco secret key (server-side only)
-// YOCO_PUBLIC_KEY - Yoco public key (frontend only, not used in backend)
-// BASE_URL - Base URL for success/cancel redirects
+const getBaseUrl = () =>
+  process.env.BASE_URL ||
+  process.env.FRONTEND_URL ||
+  'https://www.unicabtravelandtours.com';
 
-// POST /api/payments/create-session
-// DISABLED - Stripe removed, Yoco only
-// ADMIN ONLY - Not customer-facing
-router.post('/create-session', async (req, res) => {
-  try {
-    const { booking_id, amount, currency = 'zar' } = req.body;
-
-    if (!booking_id) {
-      return res.status(400).json({
-        success: false,
-        error: 'booking_id is required'
-      });
-    }
-
-    if (!amount || amount <= 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'amount must be greater than 0'
-      });
-    }
-
-    // TODO: When Stripe is integrated, uncomment and configure:
-    /*
-    const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: currency.toLowerCase(),
-            product_data: {
-              name: 'Tour Booking',
-              description: `Booking ID: ${booking_id}`
-            },
-            unit_amount: Math.round(amount * 100) // Convert to cents
-          },
-          quantity: 1
-        }
-      ],
-      mode: 'payment',
-      success_url: `${process.env.FRONTEND_URL}/booking/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.FRONTEND_URL}/booking/cancel`,
-      metadata: {
-        booking_id: booking_id
-      }
-    });
-
-    return res.json({
-      success: true,
-      data: {
-        session_id: session.id,
-        url: session.url
-      }
-    });
-    */
-
-    // DISABLED - Stripe removed, Yoco only
-    res.status(410).json({
-      success: false,
-      error: 'Stripe payment gateway disabled',
-      message: 'This payment method is no longer available. Please use Yoco PayGate for payments.'
-    });
-  } catch (error) {
-    console.error('Error creating payment session:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to create payment session',
-      message: error.message
-    });
-  }
-});
-
-// POST /api/payments/webhook
-// DISABLED - Stripe removed, Yoco only
-// ADMIN ONLY - Not customer-facing
-router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-  try {
-    // TODO: When Stripe is integrated, uncomment and configure:
-    /*
-    const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-    const sig = req.headers['stripe-signature'];
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-    let event;
-
-    try {
-      event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
-    } catch (err) {
-      console.error('Webhook signature verification failed:', err.message);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-
-    // Handle the event
-    switch (event.type) {
-      case 'checkout.session.completed':
-        const session = event.data.object;
-        const bookingId = session.metadata.booking_id;
-        
-        // Update booking status to confirmed
-        // await updateBookingStatus(bookingId, 'confirmed');
-        
-        console.log(`Booking ${bookingId} confirmed via payment`);
-        break;
-      
-      case 'payment_intent.succeeded':
-        console.log('Payment succeeded');
-        break;
-      
-      default:
-        console.log(`Unhandled event type ${event.type}`);
-    }
-
-    res.json({ received: true });
-    */
-
-    // Stub response
-    console.log('Webhook received (not yet configured)');
-    res.json({
-      success: true,
-      message: 'Webhook endpoint ready for Stripe integration'
-    });
-  } catch (error) {
-    console.error('Error processing webhook:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to process webhook',
-      message: error.message
-    });
-  }
-});
-
-// POST /api/create-payment
-// Creates a Yoco PayGate checkout session
-// Accepts: amount (in cents), bookingRef
-// Returns: { redirectUrl }
+// POST /api/payments/create-payment
+// Create YOCO checkout for an existing Supabase booking
 router.post('/create-payment', async (req, res) => {
   try {
-    const { amount, bookingRef } = req.body;
+    const { amount, bookingRef, booking_id } = req.body;
+    const bookingId = booking_id || bookingRef;
 
-    // Validate required fields
     if (!amount || amount <= 0) {
       return res.status(400).json({
         success: false,
@@ -158,62 +22,48 @@ router.post('/create-payment', async (req, res) => {
       });
     }
 
-    if (!bookingRef) {
+    if (!bookingId) {
       return res.status(400).json({
         success: false,
-        error: 'bookingRef is required'
+        error: 'bookingRef (booking id) is required'
       });
     }
 
-    // Validate environment variables
     const yocoSecretKey = process.env.YOCO_SECRET_KEY;
-    const baseUrl = process.env.BASE_URL || 'https://www.unicabtravelandtours.com';
-
     if (!yocoSecretKey) {
-      console.error('YOCO_SECRET_KEY is not set in environment variables');
       return res.status(500).json({
         success: false,
         error: 'Payment gateway configuration error',
-        message: 'Payment service is not properly configured'
+        message: 'YOCO_SECRET_KEY is not configured'
       });
     }
 
-    // Ensure amount is in cents (integer)
-    const amountInCents = Math.round(amount);
+    const amountInCents = Math.round(Number(amount));
+    const baseUrl = getBaseUrl();
+    const successUrl = `${baseUrl}/payment-success?bookingRef=${encodeURIComponent(bookingId)}`;
+    const cancelUrl = `${baseUrl}/payment-failed?bookingRef=${encodeURIComponent(bookingId)}`;
 
-    // Build success and cancel URLs
-    const successUrl = `${baseUrl}/payment-success?bookingRef=${encodeURIComponent(bookingRef)}`;
-    const cancelUrl = `${baseUrl}/payment-failed?bookingRef=${encodeURIComponent(bookingRef)}`;
-
-    // Create Yoco checkout via API
-    // Documentation: https://developer.yoco.com/inline/api-reference/
-    const yocoApiUrl = 'https://payments.yoco.com/api/checkouts';
-
-    const checkoutPayload = {
-      amount: amountInCents,
-      currency: 'ZAR',
-      successUrl: successUrl,
-      cancelUrl: cancelUrl,
-      metadata: {
-        bookingRef: bookingRef
-      }
-    };
-
-    // Make request to Yoco API
-    const yocoResponse = await fetch(yocoApiUrl, {
+    const yocoResponse = await fetch('https://payments.yoco.com/api/checkouts', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${yocoSecretKey}`
+        Authorization: `Bearer ${yocoSecretKey}`
       },
-      body: JSON.stringify(checkoutPayload)
+      body: JSON.stringify({
+        amount: amountInCents,
+        currency: 'ZAR',
+        successUrl,
+        cancelUrl,
+        metadata: {
+          bookingRef: String(bookingId),
+          booking_id: String(bookingId)
+        }
+      })
     });
 
-    // Check if request was successful
     if (!yocoResponse.ok) {
       const errorText = await yocoResponse.text();
       console.error('Yoco API error:', yocoResponse.status, errorText);
-      
       return res.status(yocoResponse.status).json({
         success: false,
         error: 'Failed to create payment checkout',
@@ -221,25 +71,39 @@ router.post('/create-payment', async (req, res) => {
       });
     }
 
-    // Parse Yoco response
     const yocoData = await yocoResponse.json();
-
-    // Yoco returns a redirectUrl in the response
     if (!yocoData.redirectUrl) {
-      console.error('Yoco response missing redirectUrl:', yocoData);
       return res.status(500).json({
         success: false,
-        error: 'Invalid response from payment gateway',
-        message: 'Payment gateway did not return a valid redirect URL'
+        error: 'Invalid response from payment gateway'
       });
     }
 
-    // Return redirect URL to frontend
+    // Store checkout id + pending payment on booking
+    if (isSupabaseConfigured()) {
+      try {
+        const supabaseAdmin = getSupabaseAdmin();
+        await supabaseAdmin
+          .from('bookings')
+          .update({
+            payment_status: 'pending',
+            yoco_checkout_id: yocoData.id || yocoData.checkoutId || null,
+            payment_reference: yocoData.id || bookingId
+          })
+          .eq('id', bookingId);
+      } catch (dbError) {
+        console.warn('Could not update booking payment fields:', dbError.message);
+      }
+    }
+
     return res.json({
       success: true,
+      data: {
+        redirectUrl: yocoData.redirectUrl,
+        checkoutId: yocoData.id || yocoData.checkoutId || null
+      },
       redirectUrl: yocoData.redirectUrl
     });
-
   } catch (error) {
     console.error('Error creating Yoco payment checkout:', error);
     return res.status(500).json({
@@ -250,11 +114,122 @@ router.post('/create-payment', async (req, res) => {
   }
 });
 
+// POST /api/payments/webhook
+// YOCO webhook — confirm booking payment in Supabase
+router.post('/webhook', async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const eventType = payload.type || payload.event || payload.eventType;
+    const data = payload.payload || payload.data || payload;
+
+    const bookingId =
+      data?.metadata?.booking_id ||
+      data?.metadata?.bookingRef ||
+      payload?.metadata?.booking_id ||
+      payload?.metadata?.bookingRef;
+
+    const paymentRef =
+      data?.id ||
+      data?.checkoutId ||
+      data?.paymentId ||
+      payload?.id ||
+      null;
+
+    console.log('YOCO webhook received:', { eventType, bookingId, paymentRef });
+
+    const isPaid =
+      /payment\.succeeded|checkout\.succeeded|payment_succeeded|succeeded/i.test(String(eventType || '')) ||
+      data?.status === 'succeeded' ||
+      data?.status === 'successful';
+
+    const isFailed =
+      /payment\.failed|checkout\.failed|failed/i.test(String(eventType || '')) ||
+      data?.status === 'failed';
+
+    if (bookingId && isSupabaseConfigured()) {
+      const supabaseAdmin = getSupabaseAdmin();
+      const updates = {
+        payment_reference: paymentRef || bookingId
+      };
+
+      if (isPaid) {
+        updates.status = 'confirmed';
+        updates.payment_status = 'paid';
+        updates.paid_at = new Date().toISOString();
+      } else if (isFailed) {
+        updates.payment_status = 'failed';
+      }
+
+      const { error } = await supabaseAdmin
+        .from('bookings')
+        .update(updates)
+        .eq('id', bookingId);
+
+      if (error) {
+        console.error('Failed to update booking from YOCO webhook:', error);
+      }
+    }
+
+    return res.json({ success: true, received: true });
+  } catch (error) {
+    console.error('Error processing YOCO webhook:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to process webhook',
+      message: error.message
+    });
+  }
+});
+
+// POST /api/payments/confirm
+// Fallback confirm after redirect (when webhook is delayed)
+router.post('/confirm', async (req, res) => {
+  try {
+    const { bookingRef, booking_id } = req.body;
+    const bookingId = booking_id || bookingRef;
+
+    if (!bookingId) {
+      return res.status(400).json({
+        success: false,
+        error: 'bookingRef is required'
+      });
+    }
+
+    if (!isSupabaseConfigured()) {
+      return res.status(501).json({
+        success: false,
+        error: 'Supabase not configured'
+      });
+    }
+
+    const supabaseAdmin = getSupabaseAdmin();
+    const { data, error } = await supabaseAdmin
+      .from('bookings')
+      .update({
+        status: 'confirmed',
+        payment_status: 'paid',
+        paid_at: new Date().toISOString()
+      })
+      .eq('id', bookingId)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    return res.json({
+      success: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error confirming payment:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to confirm payment',
+      message: error.message
+    });
+  }
+});
+
 module.exports = router;
-
-
-
-
-
-
-
