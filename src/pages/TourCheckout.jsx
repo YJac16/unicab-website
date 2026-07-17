@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useParams, useNavigate, useLocation } from "react-router-dom";
-import { createBooking, calculateTourPrice } from "../lib/api";
+import { createBooking, calculateTourPrice, createYocoPayment } from "../lib/api";
 import BackToTop from "../components/BackToTop";
 
 function TourCheckout() {
@@ -28,10 +28,10 @@ function TourCheckout() {
   const [reserved, setReserved] = useState(false);
   const [reservationId, setReservationId] = useState(null);
 
-  const { pax, date, time, tour, driver, drivers, ...transactionData } = location.state || {};
+  const { pax, date, time, tour, ...transactionData } = location.state || {};
 
   useEffect(() => {
-    if (!pax || !date || !tour || !driver) {
+    if (!pax || !date || !tour) {
       navigate(`/tours/${id}`);
       return;
     }
@@ -53,13 +53,11 @@ function TourCheckout() {
         country: transactionData.country || "South Africa"
       });
     }
-  }, [pax, date, tour, driver, id, navigate, transactionData]);
+  }, [pax, date, tour, id, navigate, transactionData]);
 
-  if (!pax || !date || !tour || !driver) return null;
+  if (!pax || !date || !tour) return null;
 
-  const pricePerPerson = tour?.pricing 
-    ? calculateTourPrice(tour, pax)
-    : (tour?.getPrice ? tour.getPrice(pax) : 0);
+  const pricePerPerson = calculateTourPrice(tour, pax);
   const totalPrice = pricePerPerson * pax;
 
   const validate = (requirePayment = false) => {
@@ -143,12 +141,12 @@ function TourCheckout() {
       }
 
       // Create reservation via API
-      const driverId = driver.id || driver.driver_id;
+      // ADMIN ONLY - Driver assignment handled internally, not customer-facing
       const tourId = tour.id;
 
       const bookingData = {
         tour_id: tourId,
-        driver_id: driverId,
+        // driver_id removed - ADMIN ONLY, not customer-facing
         user_id: userId, // Link to member account if logged in
         customer_name: `${formData.firstName} ${formData.lastName}`,
         customer_email: formData.email,
@@ -188,26 +186,28 @@ function TourCheckout() {
     setSubmitting(true);
 
     try {
-      // TODO: Process payment via Stripe or payment gateway
-      // For now, update booking status to 'pending' (will be confirmed after payment verification)
+      // Convert total price to cents for Yoco API
+      const amountInCents = Math.round(totalPrice * 100);
       
-      // Update booking status to pending (payment processing)
-      // In production, this would call a payment API
-      alert('Payment processing will be implemented with Stripe integration. Your reservation is saved.');
-      
-      setSubmitting(false);
-      setSuccess(true);
+      // Create booking reference from reservation ID or generate one
+      const bookingRef = reservationId || `booking-${Date.now()}`;
 
-      // Redirect to confirmation page after 2 seconds
-      setTimeout(() => {
-        navigate(`/tours/${id}/confirmation`, {
-          state: { 
-            booking: { id: reservationId },
-            reserved: true,
-            paymentPending: true
-          }
-        });
-      }, 2000);
+      // Call Yoco payment API
+      const { data, error } = await createYocoPayment(amountInCents, bookingRef);
+
+      if (error) {
+        console.error('Error creating payment:', error);
+        alert(error.message || 'Failed to initiate payment. Please try again.');
+        setSubmitting(false);
+        return;
+      }
+
+      if (data && data.redirectUrl) {
+        // Redirect to Yoco checkout
+        window.location.href = data.redirectUrl;
+      } else {
+        throw new Error('No redirect URL received from payment gateway');
+      }
     } catch (error) {
       console.error('Error processing payment:', error);
       alert('An error occurred processing payment. Please try again.');
@@ -283,12 +283,11 @@ function TourCheckout() {
           <div className="container">
             <div style={{ maxWidth: "900px", margin: "0 auto" }}>
               <Link 
-                to={`/tours/${id}/drivers`}
-                state={{ pax, date, tour }}
+                to={`/tours/${id}`}
                 className="btn btn-outline" 
                 style={{ marginBottom: "2rem", textDecoration: "none" }}
               >
-                ← Back
+                ← Back to Tour
               </Link>
 
               {/* Booking Summary */}
@@ -313,10 +312,7 @@ function TourCheckout() {
                     <span style={{ color: "var(--text-soft)" }}>Group Size:</span>
                     <strong>{pax} {pax === 1 ? "person" : "people"}</strong>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: "var(--text-soft)" }}>Driver:</span>
-                    <strong>{driver.name}</strong>
-                  </div>
+                  {/* ADMIN ONLY - Driver assignment handled internally, not customer-facing */}
                   <div style={{ display: "flex", justifyContent: "space-between", marginTop: "0.5rem", paddingTop: "0.75rem", borderTop: "1px solid var(--border-soft)" }}>
                     <span style={{ color: "var(--text-soft)" }}>Price per person:</span>
                     <strong>R{pricePerPerson.toLocaleString()}</strong>
@@ -569,24 +565,6 @@ function TourCheckout() {
                     </div>
                       </div>
 
-                      <div style={{ 
-                        padding: "1.5rem", 
-                        background: "#fff3cd", 
-                        borderRadius: "8px",
-                        marginBottom: "1rem",
-                        border: "1px solid #ffc107"
-                      }}>
-                        <p style={{ 
-                          margin: 0, 
-                          color: "#856404", 
-                          fontSize: "0.95rem",
-                          textAlign: "center",
-                          fontWeight: "500"
-                        }}>
-                          ⚠️ Online payments coming soon. Please contact us to complete your booking.
-                        </p>
-                      </div>
-
                       <button
                         type="submit"
                         disabled={submitting}
@@ -597,7 +575,7 @@ function TourCheckout() {
                           padding: "1rem"
                         }}
                       >
-                        {submitting ? "Processing Payment..." : "Complete Payment"}
+                        {submitting ? "Redirecting to Payment..." : "Pay with Card"}
                       </button>
                     </div>
                   </form>

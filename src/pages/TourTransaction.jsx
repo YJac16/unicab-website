@@ -37,9 +37,7 @@ function TourTransaction() {
 
   if (!pax || !date || !tour || !driver) return null;
 
-  const pricePerPerson = tour?.pricing 
-    ? calculateTourPrice(tour, pax)
-    : (tour?.getPrice ? tour.getPrice(pax) : 0);
+  const pricePerPerson = calculateTourPrice(tour, pax);
   const totalPrice = pricePerPerson * pax;
 
   const validate = () => {

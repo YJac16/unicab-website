@@ -1,4 +1,7 @@
 import { supabase, isSupabaseConfigured } from './supabase';
+import { calculateTourPrice, getPriceForGroupSize, formatTourPrice } from './pricing';
+
+export { calculateTourPrice, getPriceForGroupSize, formatTourPrice };
 
 // API Base URL - use backend Express server
 // In development, Vite proxy handles /api routes, so we use relative URLs
@@ -153,19 +156,67 @@ export const getTours = async () => {
 };
 
 export const getTour = async (id) => {
+  const { tours } = await import('../data');
+  const localTour = tours.find((t) => t.id === id);
+
   if (!isSupabaseConfigured()) {
-    const { tours } = await import('../data');
-    return { data: tours.find(t => t.id === id), error: null };
+    return { data: localTour || null, error: localTour ? null : { message: 'Tour not found' } };
   }
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('tours')
     .select('*')
     .eq('id', id)
     .eq('active', true)
-    .single();
+    .maybeSingle();
 
-  return { data, error };
+  if (!data && !error) {
+    ({ data, error } = await supabase
+      .from('tours')
+      .select('*')
+      .eq('slug', id)
+      .eq('active', true)
+      .maybeSingle());
+  }
+
+  if (error) {
+    return { data: localTour || null, error: localTour ? null : error };
+  }
+
+  if (!data) {
+    return { data: localTour || null, error: localTour ? null : { message: 'Tour not found' } };
+  }
+
+  if (localTour) {
+    return {
+      data: {
+        ...localTour,
+        ...data,
+        id: data.id || localTour.id,
+        name: data.name || localTour.name,
+        description: data.description || localTour.description,
+        duration: data.duration || localTour.duration,
+        duration_hours: data.duration_hours ?? localTour.duration_hours,
+        pricing: data.pricing || localTour.pricing,
+        getPrice: localTour.getPrice,
+        image: data.image_url || localTour.image,
+        priceFrom: data.price_from || localTour.priceFrom,
+        highlights: data.highlights || localTour.highlights,
+        promotion: data.promotion ?? localTour.promotion,
+        rating: localTour.rating,
+      },
+      error: null,
+    };
+  }
+
+  return {
+    data: {
+      ...data,
+      image: data.image_url,
+      priceFrom: data.price_from,
+    },
+    error: null,
+  };
 };
 
 // Guides API (using backend Express routes)
@@ -345,17 +396,53 @@ export const updateBooking = async (bookingId, updates) => {
 // Note: getDriverAvailability is defined below in the Supabase section (line 711)
 // This old version has been removed to avoid duplicate declaration
 
-export const blockDriverDate = async (driverId, date, reason = '') => {
+export const blockDriverDate = async (driverIdOrDate, dateOrReason, reason = '') => {
   if (!isSupabaseConfigured()) {
-    return { data: { id: Date.now(), driver_id: driverId, date, reason }, error: null };
+    const date = typeof dateOrReason === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(driverIdOrDate)
+      ? driverIdOrDate
+      : dateOrReason;
+    return { data: { id: Date.now(), date, reason: reason || dateOrReason }, error: null };
+  }
+
+  let driverId = driverIdOrDate;
+  let date = dateOrReason;
+  let blockReason = reason;
+
+  // Support driver self-service: blockDriverDate(date, reason)
+  if (typeof driverIdOrDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(driverIdOrDate)) {
+    date = driverIdOrDate;
+    blockReason = typeof dateOrReason === 'string' ? dateOrReason : '';
+    driverId = null;
+  }
+
+  if (!driverId) {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) {
+      return { data: null, error: { message: 'Not authenticated' } };
+    }
+
+    const { data: driverData, error: driverError } = await supabase
+      .from('drivers')
+      .select('id')
+      .eq('user_id', userData.user.id)
+      .single();
+
+    if (driverError || !driverData) {
+      return { data: null, error: { message: 'Driver record not found' } };
+    }
+
+    driverId = driverData.id;
   }
 
   const { data, error } = await supabase
     .from('driver_availability')
-    .insert({
+    .upsert({
       driver_id: driverId,
       date,
-      reason,
+      available: false,
+      reason: blockReason || null,
+    }, {
+      onConflict: 'driver_id,date',
     })
     .select()
     .single();
@@ -363,15 +450,43 @@ export const blockDriverDate = async (driverId, date, reason = '') => {
   return { data, error };
 };
 
-export const unblockDriverDate = async (availabilityId) => {
+export const unblockDriverDate = async (availabilityIdOrDate, maybeDate) => {
   if (!isSupabaseConfigured()) {
     return { data: null, error: null };
+  }
+
+  // Support unblock by availability row id
+  if (maybeDate === undefined && availabilityIdOrDate && !/^\d{4}-\d{2}-\d{2}$/.test(availabilityIdOrDate)) {
+    const { error } = await supabase
+      .from('driver_availability')
+      .delete()
+      .eq('id', availabilityIdOrDate);
+
+    return { data: null, error };
+  }
+
+  const date = maybeDate || availabilityIdOrDate;
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) {
+    return { data: null, error: { message: 'Not authenticated' } };
+  }
+
+  const { data: driverData, error: driverError } = await supabase
+    .from('drivers')
+    .select('id')
+    .eq('user_id', userData.user.id)
+    .single();
+
+  if (driverError || !driverData) {
+    return { data: null, error: { message: 'Driver record not found' } };
   }
 
   const { error } = await supabase
     .from('driver_availability')
     .delete()
-    .eq('id', availabilityId);
+    .eq('driver_id', driverData.id)
+    .eq('date', date)
+    .eq('available', false);
 
   return { data: null, error };
 };
@@ -425,30 +540,20 @@ export const getReviews = async (filters = {}) => {
   return { data, error };
 };
 
-// Calculate price based on group size
-export const calculateTourPrice = (tour, groupSize) => {
-  if (!tour || !tour.pricing) return 0;
-
-  const pricing = tour.pricing;
-  
-  if (groupSize === 1) return pricing[1] || 0;
-  if (groupSize === 2) return pricing[2] || 0;
-  if (groupSize === 3) return pricing[3] || 0;
-  if (groupSize === 4) return pricing[4] || 0;
-  if (groupSize >= 5 && groupSize <= 6) return pricing['5-6'] || 0;
-  if (groupSize >= 7 && groupSize <= 10) return pricing['7-10'] || 0;
-  if (groupSize >= 11 && groupSize <= 14) return pricing['11-14'] || 0;
-  if (groupSize >= 15 && groupSize <= 18) return pricing['15-18'] || 0;
-  if (groupSize >= 19 && groupSize <= 22) return pricing['19-22'] || 0;
-  
-  return pricing['19-22'] || 0;
-};
-
 // Payments API (stub for Stripe integration)
 export const createPaymentSession = async (bookingId, amount, currency = 'zar') => {
   return apiCall('/api/payments/create-session', {
     method: 'POST',
     body: JSON.stringify({ booking_id: bookingId, amount, currency }),
+  });
+};
+
+// Yoco PayGate payment creation
+// Creates a Yoco checkout and returns redirectUrl
+export const createYocoPayment = async (amount, bookingRef) => {
+  return apiCall('/api/payments/create-payment', {
+    method: 'POST',
+    body: JSON.stringify({ amount, bookingRef }),
   });
 };
 
@@ -462,7 +567,31 @@ export const login = async (email, password) => {
 
 // Driver API (requires authentication token)
 const driverApiCall = async (endpoint, options = {}) => {
-  const token = localStorage.getItem('auth_token');
+  let token = null;
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      token = session.access_token;
+    }
+  } catch (error) {
+    console.warn('Could not get Supabase session:', error);
+  }
+
+  if (!token) {
+    token = localStorage.getItem('auth_token');
+  }
+
+  if (!token) {
+    return {
+      data: null,
+      error: {
+        message: 'Authentication required. Please log in.',
+        status: 401
+      }
+    };
+  }
+
   return apiCall(endpoint, {
     ...options,
     headers: {
@@ -980,6 +1109,55 @@ const memberApiCall = async (endpoint, options = {}) => {
 
 export const getMemberBookings = async () => {
   return memberApiCall('/api/member/bookings');
+};
+
+// SimplyBook API functions
+export const getSimplyBookServices = async () => {
+  return apiCall('/api/simplybook/services');
+};
+
+export const getSimplyBookAvailability = async (serviceId, date, unitId = null) => {
+  const params = new URLSearchParams({ serviceId, date });
+  if (unitId) params.append('unitId', unitId);
+  return apiCall(`/api/simplybook/availability?${params.toString()}`);
+};
+
+export const createSimplyBookBooking = async (bookingData) => {
+  return apiCall('/api/simplybook/create-booking', {
+    method: 'POST',
+    body: JSON.stringify(bookingData),
+  });
+};
+
+export const getSimplyBookBooking = async (bookingId) => {
+  return apiCall(`/api/simplybook/booking/${bookingId}`);
+};
+
+export const verifySimplyBookBooking = async (bookingId, clientEmail) => {
+  return apiCall('/api/simplybook/verify-booking', {
+    method: 'POST',
+    body: JSON.stringify({ bookingId, clientEmail }),
+  });
+};
+
+// SimplyBook Reviews API
+export const getSimplyBookReviews = async (filters = {}) => {
+  const params = new URLSearchParams();
+  if (filters.serviceId) params.append('serviceId', filters.serviceId);
+  if (filters.unitId) params.append('unitId', filters.unitId);
+  if (filters.bookingId) params.append('bookingId', filters.bookingId);
+  
+  const queryString = params.toString();
+  const endpoint = queryString ? `/api/simplybook/reviews?${queryString}` : '/api/simplybook/reviews';
+  
+  return apiCall(endpoint);
+};
+
+export const submitSimplyBookReview = async (reviewData) => {
+  return apiCall('/api/simplybook/submit-review', {
+    method: 'POST',
+    body: JSON.stringify(reviewData),
+  });
 };
 
 // Registration API (public)

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { supabase } from "../lib/supabase";
 import { Link } from "react-router-dom";
+import { verifySimplyBookBooking, submitSimplyBookReview } from "../lib/api";
 
 function DriverReviewForm({ driverId, bookingId, onReviewSubmit }) {
   const { user, isAuthenticated } = useAuth();
@@ -16,22 +16,19 @@ function DriverReviewForm({ driverId, bookingId, onReviewSubmit }) {
 
   useEffect(() => {
     const checkBooking = async () => {
-      if (!isAuthenticated || !user || !driverId) {
+      if (!isAuthenticated || !user || !bookingId) {
         setCheckingBooking(false);
         return;
       }
 
       try {
-        // Check if user has a completed booking for this driver
-        const { data, error } = await supabase
-          .from('bookings')
-          .select('id, status')
-          .eq('driver_id', driverId)
-          .eq('customer_email', user.email)
-          .in('status', ['completed', 'confirmed'])
-          .limit(1);
-
-        if (!error && data && data.length > 0) {
+        // Verify booking exists and is completed in SimplyBook
+        const { data: verifyData, error: verifyError } = await verifySimplyBookBooking(
+          bookingId,
+          user.email
+        );
+        
+        if (!verifyError && verifyData?.completed) {
           setHasBooking(true);
         }
       } catch (err) {
@@ -42,7 +39,7 @@ function DriverReviewForm({ driverId, bookingId, onReviewSubmit }) {
     };
 
     checkBooking();
-  }, [isAuthenticated, user, driverId]);
+  }, [isAuthenticated, user, bookingId]);
 
   const validate = () => {
     const newErrors = {};
@@ -67,21 +64,27 @@ function DriverReviewForm({ driverId, bookingId, onReviewSubmit }) {
     setErrors({});
 
     try {
-      const { data, error } = await supabase
-        .from('driver_reviews')
-        .insert({
-          user_id: user.id,
-          driver_id: driverId,
-          booking_id: bookingId || null,
-          rating,
-          comment: comment.trim(),
-          approved: false,
-        })
-        .select()
-        .single();
+      // Get unitId from booking if available (for driver/provider reviews)
+      let unitId = null;
+      if (bookingId) {
+        const { getSimplyBookBooking } = await import('../lib/api');
+        const { data: bookingData } = await getSimplyBookBooking(bookingId);
+        if (bookingData?.unit_id) {
+          unitId = bookingData.unit_id;
+        }
+      }
+
+      // Submit review to SimplyBook
+      const { data, error } = await submitSimplyBookReview({
+        bookingId: bookingId,
+        clientEmail: user.email,
+        rating,
+        comment: comment.trim(),
+        unitId: unitId
+      });
 
       if (error) {
-        throw error;
+        throw new Error(error.message || 'Failed to submit review');
       }
 
       setSuccess(true);
@@ -90,7 +93,7 @@ function DriverReviewForm({ driverId, bookingId, onReviewSubmit }) {
       }
     } catch (error) {
       console.error("Error submitting review:", error);
-      setErrors({ submit: "Failed to submit review. Please try again." });
+      setErrors({ submit: error.message || "Failed to submit review. Please try again." });
     } finally {
       setSubmitting(false);
     }
@@ -135,7 +138,9 @@ function DriverReviewForm({ driverId, bookingId, onReviewSubmit }) {
         border: "1px solid var(--border-soft)"
       }}>
         <p style={{ color: "var(--text-soft)", margin: 0 }}>
-          You can only review drivers after completing a booking with them.
+          {!bookingId 
+            ? "Please provide a booking ID to submit a review."
+            : "You can only review drivers after completing a booking. Please ensure your booking is completed and try again."}
         </p>
       </div>
     );

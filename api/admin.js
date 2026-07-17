@@ -4,73 +4,70 @@
 
 const express = require('express');
 const router = express.Router();
-const bcrypt = require('bcryptjs');
 const { requireAuth, requireAdmin } = require('./middleware/auth');
-const db = require('../lib/db');
+const { getSupabaseAdmin, isSupabaseConfigured } = require('../lib/supabaseAdmin');
+
+const BOOKING_SELECT = `
+  *,
+  tour:tours(*),
+  driver:drivers(id, name, email, phone, active),
+  customer:profiles!bookings_user_id_fkey(id, email, full_name)
+`;
+
+const VALID_BOOKING_STATUSES = ['reserved', 'pending', 'confirmed', 'completed', 'cancelled'];
 
 // Apply auth middleware to all routes
 router.use(requireAuth);
 router.use(requireAdmin);
 
+const requireSupabase = (res) => {
+  if (!isSupabaseConfigured()) {
+    res.status(501).json({
+      success: false,
+      error: 'Supabase not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY'
+    });
+    return false;
+  }
+  return true;
+};
+
 // GET /api/admin/bookings
-// All bookings with filters
 router.get('/bookings', async (req, res) => {
   try {
+    if (!requireSupabase(res)) return;
+
     const { status, date_from, date_to, driver_id } = req.query;
+    const supabaseAdmin = getSupabaseAdmin();
 
-    // TODO: Build query with filters
-    // let query = `
-    //   SELECT 
-    //     b.*,
-    //     t.name as tour_name,
-    //     json_build_object(
-    //       'id', d.id,
-    //       'name', d.name,
-    //       'email', d.email
-    //     ) as driver,
-    //     json_build_object(
-    //       'id', t.id,
-    //       'name', t.name
-    //     ) as tour
-    //   FROM bookings b
-    //   INNER JOIN tours t ON b.tour_id = t.id
-    //   LEFT JOIN drivers d ON b.driver_id = d.id
-    //   WHERE 1=1
-    // `;
-    // const params = [];
-    // let paramCount = 1;
-    // 
-    // if (status) {
-    //   query += ` AND b.status = $${paramCount}`;
-    //   params.push(status);
-    //   paramCount++;
-    // }
-    // if (date_from) {
-    //   query += ` AND b.date >= $${paramCount}`;
-    //   params.push(date_from);
-    //   paramCount++;
-    // }
-    // if (date_to) {
-    //   query += ` AND b.date <= $${paramCount}`;
-    //   params.push(date_to);
-    //   paramCount++;
-    // }
-    // if (driver_id) {
-    //   query += ` AND b.driver_id = $${paramCount}`;
-    //   params.push(driver_id);
-    //   paramCount++;
-    // }
-    // 
-    // query += ` ORDER BY b.date ASC, b.created_at DESC`;
-    // 
-    // const { rows } = await db.query(query, params);
+    let query = supabaseAdmin
+      .from('bookings')
+      .select(BOOKING_SELECT);
 
-    // Placeholder response
+    if (status) {
+      query = query.eq('status', status);
+    }
+    if (date_from) {
+      query = query.gte('booking_date', date_from);
+    }
+    if (date_to) {
+      query = query.lte('booking_date', date_to);
+    }
+    if (driver_id) {
+      query = query.eq('driver_id', driver_id);
+    }
+
+    const { data, error } = await query
+      .order('booking_date', { ascending: true })
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
     res.json({
       success: true,
-      data: [],
-      filters: { status, date_from, date_to, driver_id },
-      message: 'Admin bookings endpoint - connect to database'
+      data: data || [],
+      filters: { status, date_from, date_to, driver_id }
     });
   } catch (error) {
     console.error('Error fetching admin bookings:', error);
@@ -83,9 +80,10 @@ router.get('/bookings', async (req, res) => {
 });
 
 // PATCH /api/admin/bookings/:id
-// Update booking status
 router.patch('/bookings/:id', async (req, res) => {
   try {
+    if (!requireSupabase(res)) return;
+
     const { id } = req.params;
     const { status } = req.body;
 
@@ -96,37 +94,35 @@ router.patch('/bookings/:id', async (req, res) => {
       });
     }
 
-    if (!['pending', 'confirmed', 'cancelled'].includes(status)) {
+    if (!VALID_BOOKING_STATUSES.includes(status)) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid status. Must be: pending, confirmed, or cancelled'
+        error: `Invalid status. Must be one of: ${VALID_BOOKING_STATUSES.join(', ')}`
       });
     }
 
-    // TODO: Update booking status
-    // const { rows } = await db.query(
-    //   `UPDATE bookings 
-    //    SET status = $1, updated_at = NOW()
-    //    WHERE id = $2
-    //    RETURNING *`,
-    //   [status, id]
-    // );
-    // 
-    // if (rows.length === 0) {
-    //   return res.status(404).json({
-    //     success: false,
-    //     error: 'Booking not found'
-    //   });
-    // }
+    const supabaseAdmin = getSupabaseAdmin();
+    const { data, error } = await supabaseAdmin
+      .from('bookings')
+      .update({ status })
+      .eq('id', id)
+      .select(BOOKING_SELECT)
+      .maybeSingle();
 
-    // Placeholder response
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      return res.status(404).json({
+        success: false,
+        error: 'Booking not found'
+      });
+    }
+
     res.json({
       success: true,
-      data: {
-        id,
-        status,
-        updated_at: new Date().toISOString()
-      },
+      data,
       message: 'Booking status updated successfully'
     });
   } catch (error) {
@@ -140,29 +136,12 @@ router.patch('/bookings/:id', async (req, res) => {
 });
 
 // GET /api/admin/drivers
-// List all drivers from Supabase
 router.get('/drivers', async (req, res) => {
   try {
-    // Check if Supabase is configured
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!requireSupabase(res)) return;
 
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return res.status(501).json({
-        success: false,
-        error: 'Supabase not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY'
-      });
-    }
+    const supabaseAdmin = getSupabaseAdmin();
 
-    const { createClient } = require('@supabase/supabase-js');
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    });
-
-    // Fetch all drivers with their user info
     const { data: drivers, error: driversError } = await supabaseAdmin
       .from('drivers')
       .select(`
@@ -178,36 +157,30 @@ router.get('/drivers', async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (driversError) {
-      console.error('Error fetching drivers:', driversError);
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to fetch drivers',
-        message: driversError.message
-      });
+      throw driversError;
     }
 
-    // Also get profile info for each driver
     const driversWithProfiles = await Promise.all(
       (drivers || []).map(async (driver) => {
-        if (driver.user_id) {
-          const { data: profile, error: profileError } = await supabaseAdmin
-            .from('profiles')
-            .select('role, full_name')
-            .eq('id', driver.user_id)
-            .maybeSingle(); // Use maybeSingle() instead of single() to handle missing profiles
-
-          // If profile doesn't exist, that's okay - just use driver data
-          if (profileError && profileError.code !== 'PGRST116') {
-            console.warn(`Error fetching profile for driver ${driver.id}:`, profileError);
-          }
-
-          return {
-            ...driver,
-            role: profile?.role || null,
-            full_name: profile?.full_name || driver.name
-          };
+        if (!driver.user_id) {
+          return driver;
         }
-        return driver;
+
+        const { data: profile, error: profileError } = await supabaseAdmin
+          .from('profiles')
+          .select('role, full_name')
+          .eq('id', driver.user_id)
+          .maybeSingle();
+
+        if (profileError && profileError.code !== 'PGRST116') {
+          console.warn(`Error fetching profile for driver ${driver.id}:`, profileError);
+        }
+
+        return {
+          ...driver,
+          role: profile?.role || null,
+          full_name: profile?.full_name || driver.name
+        };
       })
     );
 
@@ -226,13 +199,10 @@ router.get('/drivers', async (req, res) => {
 });
 
 // POST /api/admin/drivers
-// Create driver account using Supabase Auth
-// Creates: auth user, profile with role='driver', drivers table record
 router.post('/drivers', async (req, res) => {
   try {
     const { name, email, phone, license_number, password } = req.body;
 
-    // Validate required fields
     if (!name || !email) {
       return res.status(400).json({
         success: false,
@@ -240,7 +210,6 @@ router.post('/drivers', async (req, res) => {
       });
     }
 
-    // Validate email format
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({
         success: false,
@@ -248,42 +217,24 @@ router.post('/drivers', async (req, res) => {
       });
     }
 
-    // Check if Supabase is configured
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!requireSupabase(res)) return;
 
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return res.status(501).json({
-        success: false,
-        error: 'Supabase not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY'
-      });
-    }
+    const supabaseAdmin = getSupabaseAdmin();
+    const normalizedEmail = email.toLowerCase().trim();
 
-    const { createClient } = require('@supabase/supabase-js');
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    });
-
-    // Check if user already exists in auth.users
     let existingUser = null;
     try {
-      const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserByEmail(email.toLowerCase().trim());
+      const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserByEmail(normalizedEmail);
       if (!userError && userData?.user) {
         existingUser = userData;
       }
     } catch (error) {
-      // User doesn't exist, which is fine - we'll create a new one
       console.log('User not found, will create new user:', error.message);
     }
-    
-    // If user exists, link them as driver instead of creating new user
+
     if (existingUser?.user) {
       const userId = existingUser.user.id;
 
-      // Check if driver record already exists
       const { data: existingDriver, error: driverCheckError } = await supabaseAdmin
         .from('drivers')
         .select('id, user_id, name')
@@ -305,7 +256,6 @@ router.post('/drivers', async (req, res) => {
         });
       }
 
-      // Update profile to set role='driver' if not already
       const { data: profile, error: profileError } = await supabaseAdmin
         .from('profiles')
         .select('id, role')
@@ -320,28 +270,26 @@ router.post('/drivers', async (req, res) => {
         if (profile.role !== 'driver') {
           await supabaseAdmin
             .from('profiles')
-            .update({ role: 'driver' })
+            .update({ role: 'driver', full_name: name.trim(), email: normalizedEmail })
             .eq('id', userId);
         }
       } else {
-        // Create profile if it doesn't exist
         await supabaseAdmin
           .from('profiles')
           .insert({
             id: userId,
             role: 'driver',
-            email: email.toLowerCase().trim(),
+            email: normalizedEmail,
             full_name: name.trim()
           });
       }
 
-      // Create driver record
       const { data: driverData, error: driverError } = await supabaseAdmin
         .from('drivers')
         .insert({
           user_id: userId,
           name: name.trim(),
-          email: email.toLowerCase().trim(),
+          email: normalizedEmail,
           phone: phone?.trim() || null,
           license_number: license_number?.trim() || null,
           active: true
@@ -350,12 +298,7 @@ router.post('/drivers', async (req, res) => {
         .single();
 
       if (driverError) {
-        console.error('Driver creation error:', driverError);
-        return res.status(500).json({
-          success: false,
-          error: 'Failed to create driver record',
-          message: driverError.message
-        });
+        throw driverError;
       }
 
       return res.status(201).json({
@@ -374,14 +317,13 @@ router.post('/drivers', async (req, res) => {
       });
     }
 
-    // Check if driver record already exists (for new users)
-    const { data: existingDriver } = await supabaseAdmin
+    const { data: existingDriverByEmail } = await supabaseAdmin
       .from('drivers')
       .select('id, email')
-      .eq('email', email.toLowerCase().trim())
-      .single();
+      .eq('email', normalizedEmail)
+      .maybeSingle();
 
-    if (existingDriver) {
+    if (existingDriverByEmail) {
       return res.status(409).json({
         success: false,
         error: 'A driver with this email already exists'
@@ -391,13 +333,11 @@ router.post('/drivers', async (req, res) => {
     let authUser;
     let inviteSent = false;
 
-    // Create auth user
     if (password) {
-      // Create user with password (immediate login)
       const { data: userData, error: createError } = await supabaseAdmin.auth.admin.createUser({
-        email: email.toLowerCase().trim(),
-        password: password,
-        email_confirm: true, // Auto-confirm email
+        email: normalizedEmail,
+        password,
+        email_confirm: true,
         user_metadata: {
           full_name: name.trim(),
           role: 'driver'
@@ -414,9 +354,8 @@ router.post('/drivers', async (req, res) => {
 
       authUser = userData.user;
     } else {
-      // Invite user via email (no password set)
       const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-        email.toLowerCase().trim(),
+        normalizedEmail,
         {
           data: {
             full_name: name.trim(),
@@ -446,29 +385,25 @@ router.post('/drivers', async (req, res) => {
 
     const userId = authUser.id;
 
-    // Create profile with role='driver'
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
-      .insert({
+      .upsert({
         id: userId,
-        email: email.toLowerCase().trim(),
+        email: normalizedEmail,
         role: 'driver',
         full_name: name.trim()
-      });
+      }, { onConflict: 'id' });
 
     if (profileError) {
-      // If profile insert fails, try to clean up auth user
       console.error('Profile creation error:', profileError);
-      // Note: We don't delete auth user as it might be intentional (e.g., profile already exists)
     }
 
-    // Create driver record
     const { data: driverData, error: driverError } = await supabaseAdmin
       .from('drivers')
       .insert({
         user_id: userId,
         name: name.trim(),
-        email: email.toLowerCase().trim(),
+        email: normalizedEmail,
         phone: phone?.trim() || null,
         license_number: license_number?.trim() || null,
         active: true
@@ -477,12 +412,7 @@ router.post('/drivers', async (req, res) => {
       .single();
 
     if (driverError) {
-      console.error('Driver creation error:', driverError);
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to create driver record',
-        message: driverError.message
-      });
+      throw driverError;
     }
 
     res.status(201).json({
@@ -491,13 +421,13 @@ router.post('/drivers', async (req, res) => {
         user_id: userId,
         driver_id: driverData.id,
         name: name.trim(),
-        email: email.toLowerCase().trim(),
+        email: normalizedEmail,
         phone: phone?.trim() || null,
         license_number: license_number?.trim() || null,
         invite_sent: inviteSent,
         status: inviteSent ? 'pending_invite' : 'active'
       },
-      message: inviteSent 
+      message: inviteSent
         ? 'Driver invited successfully. They will receive an email to set their password.'
         : 'Driver account created successfully'
     });
@@ -512,9 +442,10 @@ router.post('/drivers', async (req, res) => {
 });
 
 // PATCH /api/admin/drivers/:id
-// Activate / deactivate driver
 router.patch('/drivers/:id', async (req, res) => {
   try {
+    if (!requireSupabase(res)) return;
+
     const { id } = req.params;
     const { active } = req.body;
 
@@ -525,30 +456,28 @@ router.patch('/drivers/:id', async (req, res) => {
       });
     }
 
-    // TODO: Update driver active status
-    // const { rows } = await db.query(
-    //   `UPDATE drivers 
-    //    SET active = $1, updated_at = NOW()
-    //    WHERE id = $2
-    //    RETURNING *`,
-    //   [active, id]
-    // );
-    // 
-    // if (rows.length === 0) {
-    //   return res.status(404).json({
-    //     success: false,
-    //     error: 'Driver not found'
-    //   });
-    // }
+    const supabaseAdmin = getSupabaseAdmin();
+    const { data, error } = await supabaseAdmin
+      .from('drivers')
+      .update({ active })
+      .eq('id', id)
+      .select()
+      .maybeSingle();
 
-    // Placeholder response
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      return res.status(404).json({
+        success: false,
+        error: 'Driver not found'
+      });
+    }
+
     res.json({
       success: true,
-      data: {
-        id,
-        active,
-        updated_at: new Date().toISOString()
-      },
+      data,
       message: `Driver ${active ? 'activated' : 'deactivated'} successfully`
     });
   } catch (error) {
@@ -562,26 +491,28 @@ router.patch('/drivers/:id', async (req, res) => {
 });
 
 // GET /api/admin/drivers/:id/unavailability
-// View driver blocked dates
 router.get('/drivers/:id/unavailability', async (req, res) => {
   try {
+    if (!requireSupabase(res)) return;
+
     const { id } = req.params;
+    const supabaseAdmin = getSupabaseAdmin();
 
-    // TODO: Query driver unavailability
-    // const { rows } = await db.query(
-    //   `SELECT id, date, reason, created_at
-    //    FROM driver_unavailability
-    //    WHERE driver_id = $1
-    //    ORDER BY date ASC`,
-    //   [id]
-    // );
+    const { data, error } = await supabaseAdmin
+      .from('driver_availability')
+      .select('id, driver_id, date, available, reason, created_at, updated_at')
+      .eq('driver_id', id)
+      .eq('available', false)
+      .order('date', { ascending: true });
 
-    // Placeholder response
+    if (error) {
+      throw error;
+    }
+
     res.json({
       success: true,
-      data: [],
-      driver_id: id,
-      message: 'Driver unavailability endpoint - connect to database'
+      data: data || [],
+      driver_id: id
     });
   } catch (error) {
     console.error('Error fetching driver unavailability:', error);
@@ -594,9 +525,10 @@ router.get('/drivers/:id/unavailability', async (req, res) => {
 });
 
 // POST /api/admin/drivers/:id/unavailability
-// Admin blocks dates for driver
 router.post('/drivers/:id/unavailability', async (req, res) => {
   try {
+    if (!requireSupabase(res)) return;
+
     const { id } = req.params;
     const { date, reason } = req.body;
 
@@ -607,7 +539,6 @@ router.post('/drivers/:id/unavailability', async (req, res) => {
       });
     }
 
-    // Validate date format
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(date)) {
       return res.status(400).json({
@@ -616,25 +547,27 @@ router.post('/drivers/:id/unavailability', async (req, res) => {
       });
     }
 
-    // TODO: Insert unavailability (admin override)
-    // const { rows } = await db.query(
-    //   `INSERT INTO driver_unavailability (driver_id, date, reason)
-    //    VALUES ($1, $2, $3)
-    //    ON CONFLICT (driver_id, date) DO UPDATE SET reason = $3
-    //    RETURNING id, date, reason, created_at`,
-    //   [id, date, reason?.trim() || null]
-    // );
-
-    // Placeholder response
-    res.status(201).json({
-      success: true,
-      data: {
-        id: 'placeholder',
+    const supabaseAdmin = getSupabaseAdmin();
+    const { data, error } = await supabaseAdmin
+      .from('driver_availability')
+      .upsert({
         driver_id: id,
         date,
-        reason: reason?.trim() || null,
-        created_at: new Date().toISOString()
-      },
+        available: false,
+        reason: reason?.trim() || null
+      }, {
+        onConflict: 'driver_id,date'
+      })
+      .select('id, driver_id, date, available, reason, created_at, updated_at')
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.status(201).json({
+      success: true,
+      data,
       message: 'Date blocked successfully'
     });
   } catch (error) {
@@ -648,12 +581,12 @@ router.post('/drivers/:id/unavailability', async (req, res) => {
 });
 
 // DELETE /api/admin/drivers/:id/unavailability/:date
-// Admin override unblock
 router.delete('/drivers/:id/unavailability/:date', async (req, res) => {
   try {
+    if (!requireSupabase(res)) return;
+
     const { id, date } = req.params;
 
-    // Validate date format
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(date)) {
       return res.status(400).json({
@@ -662,21 +595,26 @@ router.delete('/drivers/:id/unavailability/:date', async (req, res) => {
       });
     }
 
-    // TODO: Delete unavailability
-    // const result = await db.query(
-    //   `DELETE FROM driver_unavailability
-    //    WHERE driver_id = $1 AND date = $2`,
-    //   [id, date]
-    // );
-    // 
-    // if (result.rowCount === 0) {
-    //   return res.status(404).json({
-    //     success: false,
-    //     error: 'Blocked date not found'
-    //   });
-    // }
+    const supabaseAdmin = getSupabaseAdmin();
+    const { data, error } = await supabaseAdmin
+      .from('driver_availability')
+      .delete()
+      .eq('driver_id', id)
+      .eq('date', date)
+      .eq('available', false)
+      .select('id');
 
-    // Placeholder response
+    if (error) {
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Blocked date not found'
+      });
+    }
+
     res.json({
       success: true,
       message: 'Blocked date removed successfully'
@@ -692,4 +630,3 @@ router.delete('/drivers/:id/unavailability/:date', async (req, res) => {
 });
 
 module.exports = router;
-

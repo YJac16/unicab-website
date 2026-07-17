@@ -24,23 +24,52 @@ const verifyToken = (token) => {
   }
 };
 
+const { getSupabaseAdmin, isSupabaseConfigured } = require('../../lib/supabaseAdmin');
+
+const attachDriverId = async (userInfo) => {
+  if (!userInfo || userInfo.role !== 'driver') {
+    return userInfo;
+  }
+
+  if (userInfo.driverId) {
+    return userInfo;
+  }
+
+  if (!isSupabaseConfigured()) {
+    return userInfo;
+  }
+
+  try {
+    const supabaseAdmin = getSupabaseAdmin();
+    const { data: driver, error } = await supabaseAdmin
+      .from('drivers')
+      .select('id')
+      .eq('user_id', userInfo.id)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('Could not resolve driver profile:', error.message);
+      return userInfo;
+    }
+
+    if (driver?.id) {
+      userInfo.driverId = driver.id;
+    }
+  } catch (error) {
+    console.warn('Driver lookup failed:', error.message);
+  }
+
+  return userInfo;
+};
+
 // Verify Supabase token and get user info
 const verifySupabaseToken = async (token) => {
   try {
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseServiceKey) {
+    if (!isSupabaseConfigured()) {
       return null;
     }
 
-    const { createClient } = require('@supabase/supabase-js');
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    });
+    const supabaseAdmin = getSupabaseAdmin();
 
     // Verify the token and get user
     const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
@@ -50,11 +79,11 @@ const verifySupabaseToken = async (token) => {
     }
 
     // Get user role from profiles table
-    const { data: profile, error: profileError } = await supabaseAdmin
+    const { data: profile } = await supabaseAdmin
       .from('profiles')
-      .select('role')
+      .select('role, full_name')
       .eq('id', user.id)
-      .maybeSingle(); // Use maybeSingle() to handle missing profiles gracefully
+      .maybeSingle();
 
     // If profile doesn't exist, default to customer role
     const role = profile?.role?.toLowerCase() || 'customer';
@@ -63,7 +92,7 @@ const verifySupabaseToken = async (token) => {
       id: user.id,
       email: user.email,
       role,
-      name: user.user_metadata?.full_name || null
+      name: profile?.full_name || user.user_metadata?.full_name || null
     };
   } catch (error) {
     console.error('Supabase token verification error:', error);
@@ -94,7 +123,7 @@ const requireAuth = async (req, res, next) => {
         id: decoded.userId || decoded.id,
         email: decoded.email,
         role: decoded.role?.toLowerCase() || 'customer',
-        guideId: decoded.guideId
+        driverId: decoded.driverId || decoded.guideId || null
       };
     } else {
       // Try Supabase token
@@ -108,6 +137,8 @@ const requireAuth = async (req, res, next) => {
         message: 'Token verification failed'
       });
     }
+
+    userInfo = await attachDriverId(userInfo);
 
     // Attach user info to request
     req.user = userInfo;

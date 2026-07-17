@@ -38,23 +38,8 @@ function ProfileDropdown() {
         visibility: 'visible',
         opacity: 1
       }}>
-        <Link
-          to="/login"
-          className="btn btn-outline"
-          style={{
-            padding: '0.5rem 1rem',
-            fontSize: '0.85rem',
-            textDecoration: 'none',
-            display: 'inline-block',
-            whiteSpace: 'nowrap',
-            visibility: 'visible',
-            opacity: 1,
-            position: 'relative',
-            zIndex: 100
-          }}
-        >
-          Sign In
-        </Link>
+        {/* ADMIN/DRIVER ONLY - Sign in hidden from customer-facing site */}
+        {/* <Link to="/login" className="btn btn-outline">Sign In</Link> */}
       </div>
     );
   }
@@ -116,25 +101,8 @@ function ProfileDropdown() {
           minWidth: 'fit-content'
         }}
       >
-        <Link
-          to="/login"
-          className="btn btn-outline"
-          style={{
-            padding: '0.5rem 1rem',
-            fontSize: '0.85rem',
-            textDecoration: 'none',
-            display: 'inline-block !important',
-            whiteSpace: 'nowrap',
-            visibility: 'visible !important',
-            opacity: '1 !important',
-            position: 'relative',
-            zIndex: 100,
-            minWidth: '80px',
-            textAlign: 'center'
-          }}
-        >
-          Sign In
-        </Link>
+        {/* ADMIN/DRIVER ONLY - Sign in hidden from customer-facing site */}
+        {/* <Link to="/login" className="btn btn-outline">Sign In</Link> */}
       </div>
     );
   }
@@ -290,9 +258,11 @@ function ProfileDropdown() {
               </Link>
             )}
 
-            <Link
-              to={userRole === 'admin' ? '/admin/profile' : userRole === 'driver' ? '/driver/profile' : '/member/profile'}
-              onClick={() => setIsOpen(false)}
+            {/* Profile link - ADMIN/DRIVER ONLY, member profile hidden */}
+            {(userRole === 'admin' || userRole === 'driver') && (
+              <Link
+                to={userRole === 'admin' ? '/admin/profile' : '/driver/profile'}
+                onClick={() => setIsOpen(false)}
               style={{
                 display: 'block',
                 padding: '0.75rem 1rem',
@@ -326,85 +296,9 @@ function ProfileDropdown() {
                 Profile
               </div>
             </Link>
-
-            {/* Only show Payments and Subscriptions for members/customers */}
-            {(userRole === 'member' || userRole === 'customer') && (
-              <>
-                <Link
-                  to="/payments"
-                  onClick={() => setIsOpen(false)}
-                  style={{
-                    display: 'block',
-                    padding: '0.75rem 1rem',
-                    textDecoration: 'none',
-                    color: 'var(--text-main)',
-                    fontSize: '0.9rem',
-                    borderRadius: '8px',
-                    transition: 'background var(--transition-fast)'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--bg-soft)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <line x1="12" y1="1" x2="12" y2="23"></line>
-                      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-                    </svg>
-                    Payments
-                  </div>
-                </Link>
-
-                <Link
-                  to="/subscriptions"
-                  onClick={() => setIsOpen(false)}
-                  style={{
-                    display: 'block',
-                    padding: '0.75rem 1rem',
-                    textDecoration: 'none',
-                    color: 'var(--text-main)',
-                    fontSize: '0.9rem',
-                    borderRadius: '8px',
-                    transition: 'background var(--transition-fast)'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--bg-soft)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                      <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                    </svg>
-                    Subscriptions
-                  </div>
-                </Link>
-              </>
             )}
+
+            {/* MEMBER FEATURES HIDDEN - Customer-facing only, no member features */}
 
             <div
               style={{

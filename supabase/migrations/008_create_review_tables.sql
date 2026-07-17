@@ -51,105 +51,55 @@ ALTER TABLE driver_reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tour_reviews ENABLE ROW LEVEL SECURITY;
 
 -- =====================
--- DRIVER REVIEWS RLS
+-- RLS POLICIES (idempotent)
 -- =====================
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='driver_reviews' AND policyname='Users insert own driver review') THEN
+    CREATE POLICY "Users insert own driver review" ON driver_reviews FOR INSERT
+    WITH CHECK (auth.uid() = user_id AND EXISTS (
+      SELECT 1 FROM bookings WHERE bookings.id = booking_id AND bookings.user_id = auth.uid()
+    ));
+  END IF;
 
-CREATE POLICY "Users insert own driver review"
-ON driver_reviews
-FOR INSERT
-WITH CHECK (
-  auth.uid() = user_id
-  AND EXISTS (
-    SELECT 1
-    FROM bookings
-    WHERE bookings.id = booking_id
-      AND bookings.user_id = auth.uid()
-  )
-);
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='driver_reviews' AND policyname='Public read approved driver reviews') THEN
+    CREATE POLICY "Public read approved driver reviews" ON driver_reviews FOR SELECT USING (approved = true);
+  END IF;
 
-CREATE POLICY "Public read approved driver reviews"
-ON driver_reviews
-FOR SELECT
-USING (approved = true);
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='driver_reviews' AND policyname='No user updates driver reviews') THEN
+    CREATE POLICY "No user updates driver reviews" ON driver_reviews FOR UPDATE USING (false);
+  END IF;
 
-CREATE POLICY "No user updates driver reviews"
-ON driver_reviews
-FOR UPDATE
-USING (false);
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='driver_reviews' AND policyname='No user deletes driver reviews') THEN
+    CREATE POLICY "No user deletes driver reviews" ON driver_reviews FOR DELETE USING (false);
+  END IF;
 
-CREATE POLICY "No user deletes driver reviews"
-ON driver_reviews
-FOR DELETE
-USING (false);
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='driver_reviews' AND policyname='Admins full access driver reviews') THEN
+    CREATE POLICY "Admins full access driver reviews" ON driver_reviews FOR ALL
+    USING (public.is_admin()) WITH CHECK (public.is_admin());
+  END IF;
 
-CREATE POLICY "Admins full access driver reviews"
-ON driver_reviews
-FOR ALL
-USING (
-  EXISTS (
-    SELECT 1
-    FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
-  )
-)
-WITH CHECK (
-  EXISTS (
-    SELECT 1
-    FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
-  )
-);
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='tour_reviews' AND policyname='Users insert own tour review') THEN
+    CREATE POLICY "Users insert own tour review" ON tour_reviews FOR INSERT
+    WITH CHECK (auth.uid() = user_id AND EXISTS (
+      SELECT 1 FROM bookings WHERE bookings.id = booking_id AND bookings.user_id = auth.uid()
+    ));
+  END IF;
 
--- =====================
--- TOUR REVIEWS RLS
--- =====================
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='tour_reviews' AND policyname='Public read approved tour reviews') THEN
+    CREATE POLICY "Public read approved tour reviews" ON tour_reviews FOR SELECT USING (approved = true);
+  END IF;
 
-CREATE POLICY "Users insert own tour review"
-ON tour_reviews
-FOR INSERT
-WITH CHECK (
-  auth.uid() = user_id
-  AND EXISTS (
-    SELECT 1
-    FROM bookings
-    WHERE bookings.id = booking_id
-      AND bookings.user_id = auth.uid()
-  )
-);
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='tour_reviews' AND policyname='No user updates tour reviews') THEN
+    CREATE POLICY "No user updates tour reviews" ON tour_reviews FOR UPDATE USING (false);
+  END IF;
 
-CREATE POLICY "Public read approved tour reviews"
-ON tour_reviews
-FOR SELECT
-USING (approved = true);
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='tour_reviews' AND policyname='No user deletes tour reviews') THEN
+    CREATE POLICY "No user deletes tour reviews" ON tour_reviews FOR DELETE USING (false);
+  END IF;
 
-CREATE POLICY "No user updates tour reviews"
-ON tour_reviews
-FOR UPDATE
-USING (false);
-
-CREATE POLICY "No user deletes tour reviews"
-ON tour_reviews
-FOR DELETE
-USING (false);
-
-CREATE POLICY "Admins full access tour reviews"
-ON tour_reviews
-FOR ALL
-USING (
-  EXISTS (
-    SELECT 1
-    FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
-  )
-)
-WITH CHECK (
-  EXISTS (
-    SELECT 1
-    FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
-  )
-);
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='tour_reviews' AND policyname='Admins full access tour reviews') THEN
+    CREATE POLICY "Admins full access tour reviews" ON tour_reviews FOR ALL
+    USING (public.is_admin()) WITH CHECK (public.is_admin());
+  END IF;
+END $$;

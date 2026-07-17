@@ -28,8 +28,12 @@ export const ProtectedRoute = ({ children, requiredRole = null }) => {
   if (requiredRole) {
     const normalizedRequired = requiredRole.toLowerCase();
     const normalizedUserRole = userRole?.toLowerCase();
+
+    const roleMatches = normalizedRequired === 'member'
+      ? normalizedUserRole === 'member' || normalizedUserRole === 'customer'
+      : normalizedUserRole === normalizedRequired;
     
-    if (normalizedUserRole !== normalizedRequired) {
+    if (!roleMatches) {
       // Redirect based on user's actual role
       if (normalizedUserRole === 'admin') {
         return <Navigate to="/admin/dashboard" replace />;

@@ -35,17 +35,21 @@ function TourDetail() {
           setTour(localTour);
         }
 
-        // Load reviews from database
+        // Load tour-specific reviews from Supabase
         const { data: reviews, error: reviewsError } = await getTourReviews(id);
         if (!reviewsError && reviews) {
-          setTourReviews(reviews);
-        }
+          setTourReviews(reviews || []);
 
-        // Load review stats
-        const { data: stats, error: statsError } = await getTourReviewStats(id);
-        if (!statsError && stats) {
-          setReviewStats(stats);
-          setTourRating(stats.average > 0 ? stats.average : null);
+          const { data: stats } = await getTourReviewStats(id);
+          if (stats) {
+            setReviewStats(stats);
+            setTourRating(stats.average > 0 ? stats.average : null);
+          } else if (reviews.length > 0) {
+            const totalRating = reviews.reduce((sum, r) => sum + (r.rating || 0), 0);
+            const average = totalRating / reviews.length;
+            setReviewStats({ average, count: reviews.length });
+            setTourRating(average > 0 ? average : null);
+          }
         }
       } catch (err) {
         console.error('Error loading tour:', err);
@@ -339,11 +343,14 @@ function TourDetail() {
               <div style={{ marginTop: "3rem", padding: "2rem", backgroundColor: "var(--bg-elevated)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-soft)" }}>
                 <h3 style={{ marginTop: 0, marginBottom: "1rem" }}>Ready to Book?</h3>
                 <p style={{ marginBottom: "1.5rem", color: "var(--text-soft)" }}>
-                  Book this tour with our easy online booking system. Select your group size, date, and driver.
+                  Book directly on our site or through SimplyBook.me.
                 </p>
                 <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
                   <Link to={`/tours/${tour.id}/booking`} className="btn btn-primary" style={{ textDecoration: "none" }}>
-                    Book Now
+                    Book This Tour
+                  </Link>
+                  <Link to="/book" className="btn btn-outline" style={{ textDecoration: "none" }}>
+                    Book via SimplyBook
                   </Link>
                   <Link to="/tours" className="btn btn-outline" style={{ textDecoration: "none" }}>
                     View All Tours

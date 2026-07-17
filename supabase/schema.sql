@@ -1,332 +1,393 @@
--- UNICAB Travel & Tours Database Schema
--- Run this in your Supabase SQL Editor
+-- UNICAB Travel & Tours — Supabase Schema
+-- Run this in the Supabase SQL Editor (safe to re-run)
+-- Uses profiles.role for admin/driver/customer access (not user_roles)
 
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+create extension if not exists "uuid-ossp";
+create extension if not exists "pgcrypto";
 
--- Tours Table
-CREATE TABLE IF NOT EXISTS tours (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name TEXT NOT NULL,
-  slug TEXT UNIQUE NOT NULL,
-  description TEXT,
-  duration TEXT,
-  image_url TEXT,
-  price_from TEXT,
-  promotion TEXT,
-  highlights JSONB DEFAULT '[]'::jsonb,
-  pricing JSONB NOT NULL, -- Stores pricing structure
-  active BOOLEAN DEFAULT true,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+-- =========================
+-- TOURS
+-- =========================
+create table if not exists public.tours (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  slug text unique,
+  description text,
+  duration text,
+  duration_hours numeric(4,2),
+  image_url text,
+  price_from text,
+  price_zar numeric(10,2),
+  max_people integer default 22,
+  promotion text,
+  highlights jsonb default '[]'::jsonb,
+  pricing jsonb,
+  active boolean default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
--- Vehicles Table
-CREATE TABLE IF NOT EXISTS vehicles (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name TEXT NOT NULL,
-  type TEXT NOT NULL, -- sedan, suv, minivan, minicoach, etc.
-  capacity INTEGER NOT NULL, -- max passengers
-  features JSONB DEFAULT '[]'::jsonb,
-  active BOOLEAN DEFAULT true,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+alter table public.tours enable row level security;
+
+-- =========================
+-- PROFILES (roles)
+-- =========================
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  role text not null check (role in ('admin', 'driver', 'customer')),
+  full_name text,
+  email text,
+  avatar_url text,
+  created_at timestamptz default now()
 );
 
--- Drivers Table
-CREATE TABLE IF NOT EXISTS drivers (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE,
-  name TEXT NOT NULL,
-  email TEXT UNIQUE NOT NULL,
-  phone TEXT,
-  experience TEXT,
-  languages TEXT[] DEFAULT '{}',
-  skills TEXT[] DEFAULT '{}',
-  image_url TEXT,
-  vehicle_id UUID REFERENCES vehicles(id),
-  active BOOLEAN DEFAULT true,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+alter table public.profiles enable row level security;
+
+-- =========================
+-- DRIVERS
+-- =========================
+create table if not exists public.drivers (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid unique references auth.users(id) on delete cascade,
+  name text not null,
+  email text,
+  phone text,
+  license_number text,
+  active boolean default true,
+  created_at timestamptz default now()
 );
 
--- Driver Availability (Blocked Dates)
-CREATE TABLE IF NOT EXISTS driver_availability (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  driver_id UUID REFERENCES drivers(id) ON DELETE CASCADE NOT NULL,
-  date DATE NOT NULL,
-  reason TEXT, -- vacation, maintenance, etc.
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(driver_id, date)
+alter table public.drivers enable row level security;
+
+create unique index if not exists drivers_email_unique_idx
+  on public.drivers (lower(email))
+  where email is not null;
+
+-- =========================
+-- BOOKINGS
+-- =========================
+create table if not exists public.bookings (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references public.profiles(id) on delete set null,
+  driver_id uuid references public.drivers(id) on delete set null,
+  tour_id uuid references public.tours(id) on delete set null,
+  booking_date date not null default current_date,
+  booking_time time,
+  group_size integer default 1 check (group_size >= 1 and group_size <= 22),
+  customer_name text,
+  customer_email text,
+  customer_phone text,
+  special_requests text,
+  price_per_person numeric(10,2),
+  total_price numeric(10,2),
+  status text not null default 'reserved'
+    check (status in ('reserved','pending','confirmed','completed','cancelled')),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
--- Bookings Table
-CREATE TABLE IF NOT EXISTS bookings (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  tour_id UUID REFERENCES tours(id) NOT NULL,
-  driver_id UUID REFERENCES drivers(id) NOT NULL,
-  customer_name TEXT NOT NULL,
-  customer_email TEXT NOT NULL,
-  customer_phone TEXT,
-  date DATE NOT NULL,
-  group_size INTEGER NOT NULL CHECK (group_size >= 1 AND group_size <= 22),
-  price_per_person DECIMAL(10, 2) NOT NULL,
-  total_price DECIMAL(10, 2) NOT NULL,
-  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'completed', 'cancelled')),
-  special_requests TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  -- Prevent double booking
-  CONSTRAINT no_double_booking UNIQUE (driver_id, date)
+alter table public.bookings enable row level security;
+
+create index if not exists idx_bookings_booking_date on public.bookings(booking_date);
+create index if not exists idx_bookings_driver_date on public.bookings(driver_id, booking_date);
+create index if not exists idx_bookings_status on public.bookings(status);
+create index if not exists idx_bookings_user_id on public.bookings(user_id);
+
+-- =========================
+-- DRIVER AVAILABILITY
+-- =========================
+create table if not exists public.driver_availability (
+  id uuid primary key default gen_random_uuid(),
+  driver_id uuid not null references public.drivers(id) on delete cascade,
+  date date not null,
+  available boolean default true,
+  reason text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique (driver_id, date)
 );
 
--- Reviews Table
-CREATE TABLE IF NOT EXISTS reviews (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  booking_id UUID REFERENCES bookings(id) ON DELETE CASCADE,
-  tour_id UUID REFERENCES tours(id),
-  driver_id UUID REFERENCES drivers(id),
-  reviewer_name TEXT NOT NULL,
-  reviewer_email TEXT,
-  rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
-  comment TEXT,
-  approved BOOLEAN DEFAULT false,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+alter table public.driver_availability enable row level security;
+
+create index if not exists idx_driver_availability_date
+  on public.driver_availability(driver_id, date);
+
+-- =========================
+-- REVIEWS
+-- =========================
+create table if not exists public.driver_reviews (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  driver_id uuid not null references public.drivers(id) on delete cascade,
+  booking_id uuid references public.bookings(id) on delete set null,
+  rating integer not null check (rating between 1 and 5),
+  comment text,
+  approved boolean default false,
+  created_at timestamptz default now()
 );
 
--- User Roles (extends auth.users)
-CREATE TABLE IF NOT EXISTS user_roles (
-  user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  role TEXT NOT NULL CHECK (role IN ('admin', 'driver', 'customer')),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+create table if not exists public.tour_reviews (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  tour_id uuid not null references public.tours(id) on delete cascade,
+  booking_id uuid references public.bookings(id) on delete set null,
+  rating integer not null check (rating between 1 and 5),
+  comment text,
+  approved boolean default false,
+  created_at timestamptz default now()
 );
 
--- Indexes for performance
-CREATE INDEX IF NOT EXISTS idx_bookings_date ON bookings(date);
-CREATE INDEX IF NOT EXISTS idx_bookings_driver_date ON bookings(driver_id, date);
-CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status);
-CREATE INDEX IF NOT EXISTS idx_driver_availability_date ON driver_availability(driver_id, date);
-CREATE INDEX IF NOT EXISTS idx_reviews_tour ON reviews(tour_id);
-CREATE INDEX IF NOT EXISTS idx_reviews_driver ON reviews(driver_id);
-CREATE INDEX IF NOT EXISTS idx_reviews_approved ON reviews(approved);
+alter table public.driver_reviews enable row level security;
+alter table public.tour_reviews enable row level security;
 
--- Functions for updating timestamps
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+create index if not exists idx_driver_reviews_driver_id on public.driver_reviews(driver_id);
+create index if not exists idx_driver_reviews_approved on public.driver_reviews(approved);
+create index if not exists idx_tour_reviews_tour_id on public.tour_reviews(tour_id);
+create index if not exists idx_tour_reviews_approved on public.tour_reviews(approved);
 
--- Triggers for updated_at
-CREATE TRIGGER update_tours_updated_at BEFORE UPDATE ON tours
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+create unique index if not exists unique_driver_review_per_booking
+  on public.driver_reviews (booking_id)
+  where booking_id is not null;
 
-CREATE TRIGGER update_drivers_updated_at BEFORE UPDATE ON drivers
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+create unique index if not exists unique_tour_review_per_booking
+  on public.tour_reviews (booking_id)
+  where booking_id is not null;
 
-CREATE TRIGGER update_bookings_updated_at BEFORE UPDATE ON bookings
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_reviews_updated_at BEFORE UPDATE ON reviews
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- Row Level Security (RLS) Policies
-
--- Enable RLS on all tables
-ALTER TABLE tours ENABLE ROW LEVEL SECURITY;
-ALTER TABLE vehicles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE drivers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE driver_availability ENABLE ROW LEVEL SECURITY;
-ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_roles ENABLE ROW LEVEL SECURITY;
-
--- Tours: Public read, Admin write
-CREATE POLICY "Tours are viewable by everyone" ON tours
-  FOR SELECT USING (true);
-
-CREATE POLICY "Tours are editable by admins" ON tours
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM user_roles
-      WHERE user_id = auth.uid() AND role = 'admin'
-    )
+-- =========================
+-- HELPER FUNCTIONS
+-- =========================
+create or replace function public.is_admin()
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid() and role = 'admin'
   );
+$$;
 
--- Vehicles: Public read, Admin write
-CREATE POLICY "Vehicles are viewable by everyone" ON vehicles
-  FOR SELECT USING (true);
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (id, role, email, full_name)
+  values (
+    new.id,
+    'customer',
+    new.email,
+    coalesce(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', null)
+  )
+  on conflict (id) do update
+  set
+    email = coalesce(excluded.email, public.profiles.email),
+    full_name = coalesce(excluded.full_name, public.profiles.full_name);
+  return new;
+end;
+$$;
 
-CREATE POLICY "Vehicles are editable by admins" ON vehicles
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM user_roles
-      WHERE user_id = auth.uid() AND role = 'admin'
-    )
+create or replace function public.set_bookings_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+create or replace function public.set_driver_availability_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+create or replace function public.is_driver_available(driver_uuid uuid, check_date date)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  return coalesce(
+    (
+      select available
+      from public.driver_availability
+      where driver_id = driver_uuid and date = check_date
+      limit 1
+    ),
+    true
   );
+end;
+$$;
 
--- Drivers: Public read, Admin/Driver write
-CREATE POLICY "Drivers are viewable by everyone" ON drivers
-  FOR SELECT USING (true);
+-- =========================
+-- TRIGGERS
+-- =========================
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+after insert on auth.users
+for each row execute procedure public.handle_new_user();
 
-CREATE POLICY "Drivers can update their own profile" ON drivers
-  FOR UPDATE USING (
-    user_id = auth.uid() OR
-    EXISTS (
-      SELECT 1 FROM user_roles
-      WHERE user_id = auth.uid() AND role = 'admin'
-    )
-  );
+drop trigger if exists trg_bookings_updated_at on public.bookings;
+create trigger trg_bookings_updated_at
+before update on public.bookings
+for each row execute function public.set_bookings_updated_at();
 
-CREATE POLICY "Admins can manage drivers" ON drivers
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM user_roles
-      WHERE user_id = auth.uid() AND role = 'admin'
-    )
-  );
+drop trigger if exists trg_driver_availability_updated_at on public.driver_availability;
+create trigger trg_driver_availability_updated_at
+before update on public.driver_availability
+for each row execute function public.set_driver_availability_updated_at();
 
--- Driver Availability: Drivers see their own, Admins see all
-CREATE POLICY "Drivers see their own availability" ON driver_availability
-  FOR SELECT USING (
-    driver_id IN (
-      SELECT id FROM drivers WHERE user_id = auth.uid()
-    ) OR
-    EXISTS (
-      SELECT 1 FROM user_roles
-      WHERE user_id = auth.uid() AND role = 'admin'
-    )
-  );
-
-CREATE POLICY "Drivers manage their own availability" ON driver_availability
-  FOR ALL USING (
-    driver_id IN (
-      SELECT id FROM drivers WHERE user_id = auth.uid()
-    ) OR
-    EXISTS (
-      SELECT 1 FROM user_roles
-      WHERE user_id = auth.uid() AND role = 'admin'
-    )
-  );
-
--- Bookings: Customers see their own, Drivers see assigned, Admins see all
-CREATE POLICY "Customers see their own bookings" ON bookings
-  FOR SELECT USING (
-    customer_email = (SELECT email FROM auth.users WHERE id = auth.uid()) OR
-    driver_id IN (
-      SELECT id FROM drivers WHERE user_id = auth.uid()
-    ) OR
-    EXISTS (
-      SELECT 1 FROM user_roles
-      WHERE user_id = auth.uid() AND role = 'admin'
-    )
-  );
-
-CREATE POLICY "Anyone can create bookings" ON bookings
-  FOR INSERT WITH CHECK (true);
-
-CREATE POLICY "Admins and drivers can update bookings" ON bookings
-  FOR UPDATE USING (
-    driver_id IN (
-      SELECT id FROM drivers WHERE user_id = auth.uid()
-    ) OR
-    EXISTS (
-      SELECT 1 FROM user_roles
-      WHERE user_id = auth.uid() AND role = 'admin'
-    )
-  );
-
--- Reviews: Public read approved, Admin write
-CREATE POLICY "Approved reviews are viewable by everyone" ON reviews
-  FOR SELECT USING (approved = true);
-
-CREATE POLICY "Customers can create reviews for their bookings" ON reviews
-  FOR INSERT WITH CHECK (
-    booking_id IN (
-      SELECT id FROM bookings
-      WHERE customer_email = (SELECT email FROM auth.users WHERE id = auth.uid())
-    )
-  );
-
-CREATE POLICY "Admins can manage reviews" ON reviews
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM user_roles
-      WHERE user_id = auth.uid() AND role = 'admin'
-    )
-  );
-
--- User Roles: Users see their own role, Admins see all
-CREATE POLICY "Users see their own role" ON user_roles
-  FOR SELECT USING (
-    user_id = auth.uid() OR
-    EXISTS (
-      SELECT 1 FROM user_roles ur
-      WHERE ur.user_id = auth.uid() AND ur.role = 'admin'
-    )
-  );
-
-CREATE POLICY "Admins can manage roles" ON user_roles
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM user_roles
-      WHERE user_id = auth.uid() AND role = 'admin'
-    )
-  );
-
--- Helper function to get available drivers for a date
-CREATE OR REPLACE FUNCTION get_available_drivers(
-  p_date DATE,
-  p_group_size INTEGER
-)
-RETURNS TABLE (
-  driver_id UUID,
-  driver_name TEXT,
-  driver_email TEXT,
-  vehicle_type TEXT,
-  vehicle_capacity INTEGER,
-  rating DECIMAL
-) AS $$
-BEGIN
-  RETURN QUERY
-  SELECT 
-    d.id,
-    d.name,
-    d.email,
-    v.type,
-    v.capacity,
-    COALESCE(
-      (SELECT AVG(rating)::DECIMAL(3,2)
-       FROM reviews
-       WHERE driver_id = d.id AND approved = true),
-      0
-    ) as rating
-  FROM drivers d
-  INNER JOIN vehicles v ON d.vehicle_id = v.id
-  WHERE d.active = true
-    AND v.capacity >= p_group_size
-    AND NOT EXISTS (
-      SELECT 1 FROM bookings b
-      WHERE b.driver_id = d.id
-        AND b.date = p_date
-        AND b.status != 'cancelled'
-    )
-    AND NOT EXISTS (
-      SELECT 1 FROM driver_availability da
-      WHERE da.driver_id = d.id
-        AND da.date = p_date
+-- =========================
+-- RLS POLICIES (idempotent)
+-- =========================
+do $$
+begin
+  -- profiles
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='profiles' and policyname='Users can read own profile') then
+    create policy "Users can read own profile" on public.profiles for select using (id = auth.uid());
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='profiles' and policyname='Users read own profile') then
+    create policy "Users read own profile" on public.profiles for select using (id = auth.uid());
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='profiles' and policyname='Users update own profile') then
+    create policy "Users update own profile" on public.profiles for update using (id = auth.uid()) with check (id = auth.uid());
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='profiles' and policyname='Admins can update profiles') then
+    create policy "Admins can update profiles" on public.profiles for update using (public.is_admin());
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='profiles' and policyname='Admins update profiles') then
+    create policy "Admins update profiles" on public.profiles for update using (public.is_admin());
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='profiles' and policyname='Admins read all profiles') then
+    create policy "Admins read all profiles" on public.profiles for select using (public.is_admin());
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='profiles' and policyname='Drivers read assigned customer profiles') then
+    create policy "Drivers read assigned customer profiles" on public.profiles for select using (
+      exists (
+        select 1 from public.bookings b
+        inner join public.drivers d on d.id = b.driver_id
+        where b.user_id = profiles.id and d.user_id = auth.uid()
+      )
     );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+  end if;
 
+  -- drivers
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='drivers' and policyname='Drivers read own record') then
+    create policy "Drivers read own record" on public.drivers for select using (user_id = auth.uid());
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='drivers' and policyname='Admins manage drivers') then
+    create policy "Admins manage drivers" on public.drivers for all using (public.is_admin()) with check (public.is_admin());
+  end if;
 
+  -- bookings
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='bookings' and policyname='Users read own bookings') then
+    create policy "Users read own bookings" on public.bookings for select using (user_id = auth.uid() or public.is_admin());
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='bookings' and policyname='Users create bookings') then
+    create policy "Users create bookings" on public.bookings for insert with check (
+      user_id = auth.uid()
+      and exists (select 1 from public.profiles where id = auth.uid() and role in ('customer','admin'))
+    );
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='bookings' and policyname='Drivers read assigned bookings') then
+    create policy "Drivers read assigned bookings" on public.bookings for select using (
+      driver_id in (select id from public.drivers where user_id = auth.uid())
+    );
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='bookings' and policyname='Drivers update assigned bookings') then
+    create policy "Drivers update assigned bookings" on public.bookings for update using (
+      driver_id in (select id from public.drivers where user_id = auth.uid())
+    );
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='bookings' and policyname='Admins manage bookings') then
+    create policy "Admins manage bookings" on public.bookings for all using (public.is_admin()) with check (public.is_admin());
+  end if;
 
+  -- driver_availability
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='driver_availability' and policyname='Drivers manage own availability') then
+    create policy "Drivers manage own availability" on public.driver_availability for all using (
+      driver_id in (select id from public.drivers where user_id = auth.uid())
+    ) with check (
+      driver_id in (select id from public.drivers where user_id = auth.uid())
+    );
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='driver_availability' and policyname='Admins manage all availability') then
+    create policy "Admins manage all availability" on public.driver_availability for all using (public.is_admin()) with check (public.is_admin());
+  end if;
 
+  -- tours (public read)
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='tours' and policyname='Tours are viewable by everyone') then
+    create policy "Tours are viewable by everyone" on public.tours for select using (true);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='tours' and policyname='Admins manage tours') then
+    create policy "Admins manage tours" on public.tours for all using (public.is_admin()) with check (public.is_admin());
+  end if;
 
+  -- driver_reviews
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='driver_reviews' and policyname='Users insert own driver review') then
+    create policy "Users insert own driver review" on public.driver_reviews for insert with check (
+      auth.uid() = user_id
+      and exists (select 1 from public.bookings where id = booking_id and user_id = auth.uid())
+    );
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='driver_reviews' and policyname='Public read approved driver reviews') then
+    create policy "Public read approved driver reviews" on public.driver_reviews for select using (approved = true);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='driver_reviews' and policyname='Admins manage driver reviews') then
+    create policy "Admins manage driver reviews" on public.driver_reviews for all using (public.is_admin()) with check (public.is_admin());
+  end if;
 
+  -- tour_reviews
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='tour_reviews' and policyname='Users insert own tour review') then
+    create policy "Users insert own tour review" on public.tour_reviews for insert with check (
+      auth.uid() = user_id
+      and exists (select 1 from public.bookings where id = booking_id and user_id = auth.uid())
+    );
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='tour_reviews' and policyname='Public read approved tour reviews') then
+    create policy "Public read approved tour reviews" on public.tour_reviews for select using (approved = true);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='tour_reviews' and policyname='Admins manage tour reviews') then
+    create policy "Admins manage tour reviews" on public.tour_reviews for all using (public.is_admin()) with check (public.is_admin());
+  end if;
+end $$;
 
+-- =========================
+-- SEED ROLES (optional — skipped if users do not exist)
+-- Update UUIDs to match your auth.users after signup
+-- =========================
+do $$
+declare
+  v_admin_id uuid := '00e486a2-9122-4314-9070-043e0f53fc03';
+  v_driver_id uuid := 'd4d4527d-cbba-44f6-93bc-62c99ef44f2e';
+begin
+  insert into public.profiles (id, role, email, full_name)
+  select u.id, 'admin', u.email, coalesce(u.raw_user_meta_data->>'full_name', 'Admin')
+  from auth.users u where u.id = v_admin_id
+  on conflict (id) do update set role = 'admin';
 
+  insert into public.profiles (id, role, email, full_name)
+  select u.id, 'driver', u.email, coalesce(u.raw_user_meta_data->>'full_name', 'Yaseen Jacobs')
+  from auth.users u where u.id = v_driver_id
+  on conflict (id) do update set role = 'driver';
 
-
+  insert into public.drivers (user_id, name, email, phone, license_number, active)
+  select u.id, 'Yaseen Jacobs', u.email, '+27823277446', '600100150F46', true
+  from auth.users u where u.id = v_driver_id
+  on conflict (user_id) do update set
+    name = excluded.name,
+    email = coalesce(excluded.email, public.drivers.email),
+    phone = excluded.phone,
+    license_number = excluded.license_number,
+    active = true;
+end $$;

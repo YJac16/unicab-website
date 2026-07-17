@@ -1,4 +1,4 @@
--- 000a_create_tours.sql
+-- 000_create_tours
 -- Base tours table (FOUNDATION)
 
 

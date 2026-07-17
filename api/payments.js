@@ -1,17 +1,18 @@
 // Payments API Routes
-// Stub endpoints for future Stripe integration
-// DO NOT process real payments yet
+// Yoco PayGate integration for online payments
+// YOCO ONLY - Stripe/PayFast removed, not customer-facing
 
 const express = require('express');
 const router = express.Router();
 
-// Environment variables for Stripe (will be set later)
-// STRIPE_SECRET_KEY - Stripe secret key
-// STRIPE_PUBLISHABLE_KEY - Stripe publishable key
-// STRIPE_WEBHOOK_SECRET - Stripe webhook secret
+// Environment variables
+// YOCO_SECRET_KEY - Yoco secret key (server-side only)
+// YOCO_PUBLIC_KEY - Yoco public key (frontend only, not used in backend)
+// BASE_URL - Base URL for success/cancel redirects
 
 // POST /api/payments/create-session
-// Creates a Stripe Checkout session (stub for now)
+// DISABLED - Stripe removed, Yoco only
+// ADMIN ONLY - Not customer-facing
 router.post('/create-session', async (req, res) => {
   try {
     const { booking_id, amount, currency = 'zar' } = req.body;
@@ -66,16 +67,11 @@ router.post('/create-session', async (req, res) => {
     });
     */
 
-    // Stub response - payments not yet enabled
-    res.json({
+    // DISABLED - Stripe removed, Yoco only
+    res.status(410).json({
       success: false,
-      error: 'Online payments coming soon',
-      message: 'Payment processing is not yet enabled. Please contact us to complete your booking.',
-      // When Stripe is enabled, this will return:
-      // data: {
-      //   session_id: session.id,
-      //   url: session.url
-      // }
+      error: 'Stripe payment gateway disabled',
+      message: 'This payment method is no longer available. Please use Yoco PayGate for payments.'
     });
   } catch (error) {
     console.error('Error creating payment session:', error);
@@ -88,7 +84,8 @@ router.post('/create-session', async (req, res) => {
 });
 
 // POST /api/payments/webhook
-// Stripe webhook endpoint (stub for now)
+// DISABLED - Stripe removed, Yoco only
+// ADMIN ONLY - Not customer-facing
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   try {
     // TODO: When Stripe is integrated, uncomment and configure:
@@ -141,6 +138,114 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       success: false,
       error: 'Failed to process webhook',
       message: error.message
+    });
+  }
+});
+
+// POST /api/create-payment
+// Creates a Yoco PayGate checkout session
+// Accepts: amount (in cents), bookingRef
+// Returns: { redirectUrl }
+router.post('/create-payment', async (req, res) => {
+  try {
+    const { amount, bookingRef } = req.body;
+
+    // Validate required fields
+    if (!amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'amount is required and must be greater than 0'
+      });
+    }
+
+    if (!bookingRef) {
+      return res.status(400).json({
+        success: false,
+        error: 'bookingRef is required'
+      });
+    }
+
+    // Validate environment variables
+    const yocoSecretKey = process.env.YOCO_SECRET_KEY;
+    const baseUrl = process.env.BASE_URL || 'https://www.unicabtravelandtours.com';
+
+    if (!yocoSecretKey) {
+      console.error('YOCO_SECRET_KEY is not set in environment variables');
+      return res.status(500).json({
+        success: false,
+        error: 'Payment gateway configuration error',
+        message: 'Payment service is not properly configured'
+      });
+    }
+
+    // Ensure amount is in cents (integer)
+    const amountInCents = Math.round(amount);
+
+    // Build success and cancel URLs
+    const successUrl = `${baseUrl}/payment-success?bookingRef=${encodeURIComponent(bookingRef)}`;
+    const cancelUrl = `${baseUrl}/payment-failed?bookingRef=${encodeURIComponent(bookingRef)}`;
+
+    // Create Yoco checkout via API
+    // Documentation: https://developer.yoco.com/inline/api-reference/
+    const yocoApiUrl = 'https://payments.yoco.com/api/checkouts';
+
+    const checkoutPayload = {
+      amount: amountInCents,
+      currency: 'ZAR',
+      successUrl: successUrl,
+      cancelUrl: cancelUrl,
+      metadata: {
+        bookingRef: bookingRef
+      }
+    };
+
+    // Make request to Yoco API
+    const yocoResponse = await fetch(yocoApiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${yocoSecretKey}`
+      },
+      body: JSON.stringify(checkoutPayload)
+    });
+
+    // Check if request was successful
+    if (!yocoResponse.ok) {
+      const errorText = await yocoResponse.text();
+      console.error('Yoco API error:', yocoResponse.status, errorText);
+      
+      return res.status(yocoResponse.status).json({
+        success: false,
+        error: 'Failed to create payment checkout',
+        message: 'Payment gateway returned an error. Please try again.'
+      });
+    }
+
+    // Parse Yoco response
+    const yocoData = await yocoResponse.json();
+
+    // Yoco returns a redirectUrl in the response
+    if (!yocoData.redirectUrl) {
+      console.error('Yoco response missing redirectUrl:', yocoData);
+      return res.status(500).json({
+        success: false,
+        error: 'Invalid response from payment gateway',
+        message: 'Payment gateway did not return a valid redirect URL'
+      });
+    }
+
+    // Return redirect URL to frontend
+    return res.json({
+      success: true,
+      redirectUrl: yocoData.redirectUrl
+    });
+
+  } catch (error) {
+    console.error('Error creating Yoco payment checkout:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to create payment checkout',
+      message: error.message || 'An unexpected error occurred'
     });
   }
 });

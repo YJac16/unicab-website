@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { supabase } from "../lib/supabase";
 import { Link } from "react-router-dom";
+import { verifySimplyBookBooking, submitSimplyBookReview } from "../lib/api";
 
 function TourReviewForm({ tourId, bookingId, onReviewSubmit }) {
   const { user, isAuthenticated } = useAuth();
@@ -16,22 +16,19 @@ function TourReviewForm({ tourId, bookingId, onReviewSubmit }) {
 
   useEffect(() => {
     const checkBooking = async () => {
-      if (!isAuthenticated || !user || !tourId) {
+      if (!isAuthenticated || !user || !bookingId) {
         setCheckingBooking(false);
         return;
       }
 
       try {
-        // Check if user has a completed booking for this tour
-        const { data, error } = await supabase
-          .from('bookings')
-          .select('id, status')
-          .eq('tour_id', tourId)
-          .eq('customer_email', user.email)
-          .in('status', ['completed', 'confirmed'])
-          .limit(1);
-
-        if (!error && data && data.length > 0) {
+        // Verify booking exists and is completed in SimplyBook
+        const { data: verifyData, error: verifyError } = await verifySimplyBookBooking(
+          bookingId,
+          user.email
+        );
+        
+        if (!verifyError && verifyData?.completed) {
           setHasBooking(true);
         }
       } catch (err) {
@@ -42,7 +39,7 @@ function TourReviewForm({ tourId, bookingId, onReviewSubmit }) {
     };
 
     checkBooking();
-  }, [isAuthenticated, user, tourId]);
+  }, [isAuthenticated, user, bookingId]);
 
   const validate = () => {
     const newErrors = {};
@@ -67,21 +64,27 @@ function TourReviewForm({ tourId, bookingId, onReviewSubmit }) {
     setErrors({});
 
     try {
-      const { data, error } = await supabase
-        .from('tour_reviews')
-        .insert({
-          user_id: user.id,
-          tour_id: tourId,
-          booking_id: bookingId || null,
-          rating,
-          comment: comment.trim(),
-          approved: false,
-        })
-        .select()
-        .single();
+      // Get serviceId from booking if available (for service/tour reviews)
+      let serviceId = null;
+      if (bookingId) {
+        const { getSimplyBookBooking } = await import('../lib/api');
+        const { data: bookingData } = await getSimplyBookBooking(bookingId);
+        if (bookingData?.service_id) {
+          serviceId = bookingData.service_id;
+        }
+      }
+
+      // Submit review to SimplyBook
+      const { data, error } = await submitSimplyBookReview({
+        bookingId: bookingId,
+        clientEmail: user.email,
+        rating,
+        comment: comment.trim(),
+        serviceId: serviceId
+      });
 
       if (error) {
-        throw error;
+        throw new Error(error.message || 'Failed to submit review');
       }
 
       setSuccess(true);
@@ -90,7 +93,7 @@ function TourReviewForm({ tourId, bookingId, onReviewSubmit }) {
       }
     } catch (error) {
       console.error("Error submitting review:", error);
-      setErrors({ submit: "Failed to submit review. Please try again." });
+      setErrors({ submit: error.message || "Failed to submit review. Please try again." });
     } finally {
       setSubmitting(false);
     }
@@ -135,7 +138,9 @@ function TourReviewForm({ tourId, bookingId, onReviewSubmit }) {
         border: "1px solid var(--border-soft)"
       }}>
         <p style={{ color: "var(--text-soft)", margin: 0 }}>
-          You can only review tours after completing a booking.
+          {!bookingId 
+            ? "Please provide a booking ID to submit a review."
+            : "You can only review tours after completing a booking. Please ensure your booking is completed and try again."}
         </p>
       </div>
     );

@@ -36,6 +36,10 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import CookiePolicy from "./pages/CookiePolicy";
 import AuthCallback from "./pages/AuthCallback";
 import Unauthorized from "./pages/Unauthorized";
+import PaymentSuccess from "./pages/PaymentSuccess";
+import PaymentFailed from "./pages/PaymentFailed";
+import SimplyBookBooking from "./pages/SimplyBookBooking";
+import BookingConfirmation from "./pages/BookingConfirmation";
 import CookieConsent from "./components/CookieConsent";
 import "./styles.css";
 
@@ -56,23 +60,14 @@ function App() {
         <Route path="/drivers" element={<Drivers />} />
         <Route path="/reviews" element={<Reviews />} />
         <Route path="/review/thank-you" element={<ReviewThankYou />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/member/login" element={<MemberLogin />} />
+        <Route path="/member/register" element={<MemberRegister />} />
+        <Route path="/member/dashboard" element={<ProtectedRoute requiredRole="member"><MemberDashboard /></ProtectedRoute>} />
         <Route path="/membership" element={<Membership />} />
         <Route path="/membership/comparison" element={<MembershipComparison />} />
         <Route path="/membership/transaction/:planId" element={<MembershipTransaction />} />
         <Route path="/membership/success" element={<MembershipSuccess />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/member/login" element={<MemberLogin />} />
-        <Route path="/member/register" element={<MemberRegister />} />
-        <Route 
-          path="/member/dashboard" 
-          element={
-            <ProtectedRoute requiredRole="member">
-              <MemberDashboard />
-            </ProtectedRoute>
-          } 
-        />
-        <Route path="/payments" element={<Payments />} />
-        <Route path="/subscriptions" element={<Subscriptions />} />
         <Route 
           path="/admin/profile" 
           element={
@@ -133,6 +128,10 @@ function App() {
         <Route path="/cookie-policy" element={<CookiePolicy />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/payment-success" element={<PaymentSuccess />} />
+        <Route path="/payment-failed" element={<PaymentFailed />} />
+        <Route path="/book" element={<SimplyBookBooking />} />
+        <Route path="/booking-confirmation" element={<BookingConfirmation />} />
       </Routes>
       <CookieConsent />
     </BrowserRouter>

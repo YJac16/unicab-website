@@ -1,5 +1,7 @@
 -- =========================
--- 007a_PROFILES_and_ROLES
+-- 002_profiles_and_roles
+-- Auto-create profile on signup
+-- Safe to re-run (idempotent)
 -- =========================
 
 create table if not exists public.profiles (
@@ -10,15 +12,21 @@ create table if not exists public.profiles (
 
 alter table public.profiles enable row level security;
 
--- Auto-create profile on signup
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer
+set search_path = public
 as $$
 begin
-  insert into public.profiles (id, role)
-  values (new.id, 'customer');
+  insert into public.profiles (id, role, email, full_name)
+  values (
+    new.id,
+    'customer',
+    new.email,
+    coalesce(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', null)
+  )
+  on conflict (id) do nothing;
   return new;
 end;
 $$;
@@ -30,16 +38,15 @@ after insert on auth.users
 for each row
 execute procedure public.handle_new_user();
 
--- Users can read their own profile
-create policy "Users read own profile"
-on public.profiles
-for select
-using (id = auth.uid());
-
-
-
-
-
-
-
-
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'profiles' and policyname = 'Users read own profile'
+  ) then
+    create policy "Users read own profile"
+    on public.profiles
+    for select
+    using (id = auth.uid());
+  end if;
+end $$;

@@ -34,12 +34,13 @@ app.use((req, res, next) => {
   const origin = req.headers.origin;
   
   if (NODE_ENV === "production") {
-    // Production: Only allow specific domains
     const allowedOrigins = [
       "https://unicabtraveltours.com",
-      "https://www.unicabtraveltours.com"
+      "https://www.unicabtraveltours.com",
+      "https://unicabtravelandtours.com",
+      "https://www.unicabtravelandtours.com",
     ];
-    if (allowedOrigins.includes(origin)) {
+    if (origin && (allowedOrigins.includes(origin) || origin.endsWith(".up.railway.app"))) {
       res.setHeader("Access-Control-Allow-Origin", origin);
     }
   } else {
@@ -80,7 +81,7 @@ app.use((error, req, res, next) => {
 
 // API Routes - with error handling
 let authRouter, toursRouter, guidesRouter, bookingsRouter, paymentsRouter;
-let driverRouter, adminRouter, memberRouter;
+let driverRouter, adminRouter, memberRouter, simplyBookRouter;
 
 try {
   authRouter = require('./api/auth');
@@ -124,6 +125,7 @@ paymentsRouter = loadRouter('./api/payments', 'Payments');
 driverRouter = loadRouter('./api/driver', 'Driver');
 adminRouter = loadRouter('./api/admin', 'Admin');
 memberRouter = loadRouter('./api/member', 'Member');
+simplyBookRouter = loadRouter('./api/simplybook', 'SimplyBook');
 
 // API info endpoint (helpful for testing)
 app.get('/api', (req, res) => {
@@ -175,6 +177,7 @@ app.use('/api/tours', toursRouter);
 app.use('/api/guides', guidesRouter);
 app.use('/api/bookings', bookingsRouter);
 app.use('/api/payments', paymentsRouter);
+app.use('/api/simplybook', simplyBookRouter);
 
 // Protected routes (require authentication)
 app.use('/api/driver', driverRouter);

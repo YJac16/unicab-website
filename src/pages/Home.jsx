@@ -14,7 +14,8 @@ const navItems = [
   { id: "vehicles", label: "Vehicles", path: "/vehicles" },
   { id: "drivers", label: "Drivers", path: "/drivers" },
   { id: "reviews", label: "Reviews", path: "/reviews" },
-  { id: "membership", label: "Membership", path: "/membership" },
+  // MEMBER FEATURES HIDDEN - Customer-facing only, no membership
+  // { id: "membership", label: "Membership", path: "/membership" },
   { id: "about", label: "About", path: null },
   { id: "contact", label: "Contact", path: null }
 ];
@@ -471,42 +472,7 @@ function Home() {
           </div>
         </section>
 
-        <section id="membership" className="section membership">
-          <div className="container section-inner">
-            <header className="section-header center">
-              <p className="eyebrow">Membership</p>
-              <h2>Exclusive Travel Benefits</h2>
-              <p className="section-intro max-720">
-                Join our membership program for priority booking, special rates, and exclusive access to premium
-                experiences.
-              </p>
-            </header>
-            <div className="cards-grid" aria-live="polite">
-              {membershipPlans.map((plan) => (
-                <article className="card soft" key={plan.id}>
-                  <div className="card-header">
-                    <h3 className="card-title">{plan.name}</h3>
-                    <span className="badge badge-gold">{plan.price}</span>
-                  </div>
-                  <ul className="card-body">
-                    {plan.benefits.map((benefit) => (
-                      <li key={benefit}>{benefit}</li>
-                    ))}
-                  </ul>
-                  <div className="card-footer">
-                    <Link
-                      to="/membership/comparison"
-                      className="btn btn-primary"
-                      style={{ textDecoration: "none", display: "inline-block" }}
-                    >
-                      Join Now
-                    </Link>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
+        {/* MEMBERSHIP SECTION HIDDEN - Customer-facing only, no member features */}
 
         <section id="safety" className="section safety-emphasis">
           <div className="container section-inner">

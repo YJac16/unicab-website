@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { drivers as localDrivers } from "../data";
-import { getDrivers, getDriverReviews, getDriverReviewStats } from "../lib/api";
+import { getDrivers, getSimplyBookReviews } from "../lib/api";
 import BackToTop from "../components/BackToTop";
 import DriverReviewForm from "../components/DriverReviewForm";
 
@@ -28,20 +28,27 @@ function Drivers() {
         if (!error && dbDrivers && dbDrivers.length > 0) {
           setDrivers(dbDrivers);
           
-          // Load reviews for each driver
+          // Load reviews from SimplyBook for each driver
+          // Note: Requires mapping driver.id to SimplyBook unitId
           const reviewsMap = {};
           const ratingsMap = {};
           
+          // Fetch all SimplyBook reviews (filter by unitId if driver has SimplyBook unit ID)
+          const { data: allReviews } = await getSimplyBookReviews();
+          
           for (const driver of dbDrivers) {
             if (driver.id) {
-              const { data: reviews } = await getDriverReviews(driver.id);
-              const { data: stats } = await getDriverReviewStats(driver.id);
+              // Filter reviews by unitId if driver has SimplyBook unit mapping
+              // For now, use all reviews (can be filtered by unitId when mapping is available)
+              const driverReviews = allReviews || [];
               
-              if (reviews) {
-                reviewsMap[driver.id] = reviews;
-              }
-              if (stats) {
-                ratingsMap[driver.id] = stats.average > 0 ? stats.average : (driver.rating || null);
+              if (driverReviews.length > 0) {
+                reviewsMap[driver.id] = driverReviews;
+                
+                // Calculate average rating
+                const totalRating = driverReviews.reduce((sum, r) => sum + (r.rating || 0), 0);
+                const average = totalRating / driverReviews.length;
+                ratingsMap[driver.id] = average > 0 ? average : (driver.rating || null);
               } else {
                 ratingsMap[driver.id] = driver.rating || null;
               }
@@ -75,10 +82,11 @@ function Drivers() {
   }, []);
 
   const handleReviewSubmit = async (driverId) => {
-    // Reload reviews after submission
+    // Reload reviews after submission from SimplyBook
     if (driverId) {
-      const { data: reviews } = await getDriverReviews(driverId);
-      const { data: stats } = await getDriverReviewStats(driverId);
+      const { data: reviews } = await getSimplyBookReviews();
+      // Filter by unitId if driver has SimplyBook unit mapping
+      const driverReviews = reviews || [];
       
       if (reviews) {
         setDriverReviews({ ...driverReviews, [driverId]: reviews });

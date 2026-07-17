@@ -16,8 +16,6 @@ function DriverDashboard() {
   const [showBlockForm, setShowBlockForm] = useState(false);
 
   useEffect(() => {
-    // Load data when component mounts
-    // Note: Driver must be authenticated via JWT token
     loadData();
   }, []);
 
@@ -83,11 +81,11 @@ function DriverDashboard() {
   }).sort((a, b) => new Date(a.date || a.booking_date) - new Date(b.date || b.booking_date));
 
   const pastBookings = bookings.filter(b => {
-    const bookingDate = new Date(b.date);
+    const bookingDate = new Date(b.date || b.booking_date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return bookingDate < today || b.status === 'completed';
-  }).sort((a, b) => new Date(b.date) - new Date(a.date));
+  }).sort((a, b) => new Date(b.date || b.booking_date) - new Date(a.date || a.booking_date));
 
   if (loading) {
     return (

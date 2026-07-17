@@ -196,12 +196,15 @@ export const AuthProvider = ({ children }) => {
       },
     });
 
-    if (!error && data?.user) {
-      // Assign customer role by default
-      await supabase.from('user_roles').insert({
-        user_id: data.user.id,
-        role: 'customer',
-      });
+    // Profile is auto-created by handle_new_user trigger; sync display fields if provided
+    if (!error && data?.user && (metadata.full_name || metadata.name)) {
+      await supabase
+        .from('profiles')
+        .update({
+          full_name: metadata.full_name || metadata.name,
+          email: email.toLowerCase().trim(),
+        })
+        .eq('id', data.user.id);
     }
 
     return { data, error };

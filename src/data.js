@@ -1,16 +1,7 @@
 // Progressive pricing structure for tours
-const getPriceForPax = (pricing, pax) => {
-  if (pax === 1) return pricing[1];
-  if (pax === 2) return pricing[2];
-  if (pax === 3) return pricing[3];
-  if (pax === 4) return pricing[4];
-  if (pax >= 5 && pax <= 6) return pricing["5-6"];
-  if (pax >= 7 && pax <= 10) return pricing["7-10"];
-  if (pax >= 11 && pax <= 14) return pricing["11-14"];
-  if (pax >= 15 && pax <= 18) return pricing["15-18"];
-  if (pax >= 19 && pax <= 22) return pricing["19-22"];
-  return pricing["19-22"]; // Default to max group size
-};
+import { getPriceForGroupSize } from './lib/pricing';
+
+const getPriceForPax = (pricing, pax) => getPriceForGroupSize(pricing, pax);
 
 export const tours = [
   {

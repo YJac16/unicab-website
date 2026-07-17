@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { tours as localTours, drivers as localDrivers } from "../data";
-import { getTour, getAvailableDrivers, calculateTourPrice } from "../lib/api";
+import { getTour, getAvailableDrivers, calculateTourPrice, formatTourPrice } from "../lib/api";
 import BackToTop from "../components/BackToTop";
 
 const formatStars = (rating) => {
@@ -290,9 +290,7 @@ function TourBooking() {
     }, 0);
   };
 
-  const pricePerPerson = tour?.pricing 
-    ? calculateTourPrice(tour, pax)
-    : (tour?.getPrice ? tour.getPrice(pax) : 0);
+  const pricePerPerson = calculateTourPrice(tour, pax);
   const totalPrice = pricePerPerson * pax;
 
   if (loading || !tour) {
@@ -491,7 +489,7 @@ function TourBooking() {
                     }}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
                         <span style={{ color: "var(--text-soft)" }}>Price per person:</span>
-                        <strong>R{pricePerPerson.toLocaleString()}</strong>
+                        <strong>{formatTourPrice(pricePerPerson)}</strong>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
                         <span style={{ color: "var(--text-soft)" }}>Number of people:</span>
@@ -507,7 +505,7 @@ function TourBooking() {
                         color: "var(--accent-gold)"
                       }}>
                         <span>Total:</span>
-                        <span>R{totalPrice.toLocaleString()}</span>
+                        <span>{formatTourPrice(totalPrice)}</span>
                       </div>
                     </div>
                   </div>
@@ -912,7 +910,7 @@ function TourBooking() {
                             fontWeight: "700",
                             color: "var(--accent-gold)"
                           }}>
-                            R{totalPrice.toLocaleString()}
+                            {formatTourPrice(totalPrice)}
                           </p>
                         </div>
                       </div>
@@ -923,7 +921,7 @@ function TourBooking() {
                         color: "var(--text-soft)"
                       }}>
                         <p style={{ margin: "0.25rem 0" }}>
-                          <strong>Price per person:</strong> R{pricePerPerson.toLocaleString()}
+                          <strong>Price per person:</strong> {formatTourPrice(pricePerPerson)}
                         </p>
                       </div>
                     </div>
