@@ -151,6 +151,7 @@ app.get('/api', (req, res) => {
         create: 'POST /api/bookings'
       },
       payments: {
+        status: 'GET /api/payments/status',
         createPayment: 'POST /api/payments/create-payment',
         confirm: 'POST /api/payments/confirm',
         webhook: 'POST /api/payments/webhook'
@@ -273,6 +274,21 @@ app.use((error, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`\n🚀 UNICAB Travel & Tours server running on port ${PORT}`);
   console.log(`📦 Environment: ${NODE_ENV}`);
+  const yocoKey =
+    process.env.YOCO_SECRET_KEY ||
+    process.env.YOCO_LIVE_SECRET_KEY ||
+    process.env.YOCO_SECRET ||
+    process.env.YOCO_LIVE_KEY;
+  if (yocoKey) {
+    const mode = String(yocoKey).startsWith('sk_live_')
+      ? 'live'
+      : String(yocoKey).startsWith('sk_test_')
+        ? 'test'
+        : 'configured';
+    console.log(`💳 YOCO payments: ${mode}`);
+  } else {
+    console.warn('⚠️  YOCO_SECRET_KEY not set — checkout payments will fail');
+  }
   if (NODE_ENV === "production") {
     console.log(`📁 Serving static files from: ${distPath}`);
   } else {

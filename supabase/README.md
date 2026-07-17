@@ -32,12 +32,15 @@
 Create a `.env` file in the project root:
 
 ```env
-VITE_SUPABASE_URL=your_project_url
+VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 VITE_SUPABASE_ANON_KEY=your_anon_key
+SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ```
 
-**Important:** Add `.env` to `.gitignore` to keep secrets safe!
+**Production (Railway):** set the same `VITE_*` values in the service variables, then **redeploy / rebuild**. Vite bakes `VITE_` vars at build time — changing them without a rebuild will leave the old (broken) URL in the live JS bundle.
+
+If `VITE_SUPABASE_URL` points at a deleted project, the browser shows `net::ERR_NAME_NOT_RESOLVED`. The site falls back to local tour/driver data, but login, bookings, and cloud reviews need a live project.
 
 ## 5. Seed Initial Data (Optional)
 

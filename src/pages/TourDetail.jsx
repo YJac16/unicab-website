@@ -293,11 +293,13 @@ function TourDetail() {
                         <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                           <div>
                             <h3 className="card-title" style={{ margin: 0 }}>
-                              Anonymous
+                              {review.reviewer_name || "Guest"}
                             </h3>
-                            <p className="card-meta" style={{ margin: "0.25rem 0 0 0", fontSize: "0.85rem" }}>
-                              {new Date(review.created_at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
-                            </p>
+                            {review.created_at && (
+                              <p className="card-meta" style={{ margin: "0.25rem 0 0 0", fontSize: "0.85rem" }}>
+                                {new Date(review.created_at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+                              </p>
+                            )}
                           </div>
                           <div className="rating">
                             <span className="stars" aria-hidden="true">

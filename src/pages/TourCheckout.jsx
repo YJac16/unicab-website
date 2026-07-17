@@ -86,16 +86,33 @@ function TourCheckout() {
         return;
       }
 
-      const amountInCents = Math.round(totalPrice * 100);
-      const { data: payment, error: paymentError } = await createYocoPayment(amountInCents, booking.id);
-
-      if (paymentError || !(payment?.redirectUrl || payment?.data?.redirectUrl)) {
-        alert(paymentError?.message || "Failed to start YOCO checkout. Please try again.");
+      // Require a real server booking (UUID) before charging with YOCO
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(booking.id))) {
+        alert("Booking could not be saved on the server. Please try again or contact us.");
         setSubmitting(false);
         return;
       }
 
-      window.location.href = payment.redirectUrl || payment.data.redirectUrl;
+      const amountInCents = Math.round(Number(totalPrice) * 100);
+      const { data: payment, error: paymentError } = await createYocoPayment(
+        amountInCents,
+        booking.id,
+        { description: `${tour.name} — ${pax} guest(s)` }
+      );
+
+      const redirectUrl = payment?.redirectUrl || payment?.data?.redirectUrl;
+      if (paymentError || !redirectUrl) {
+        alert(
+          paymentError?.message ||
+            paymentError?.error ||
+            "Failed to start YOCO checkout. Please check payment configuration and try again."
+        );
+        setSubmitting(false);
+        return;
+      }
+
+      // Hand off to YOCO hosted payment page
+      window.location.assign(redirectUrl);
     } catch (error) {
       console.error("Checkout error:", error);
       alert("An error occurred. Please try again.");
@@ -223,7 +240,7 @@ function TourCheckout() {
                 </p>
 
                 <button type="submit" className="btn btn-primary" disabled={submitting} style={{ width: "100%", padding: "1rem", fontSize: "1.05rem" }}>
-                  {submitting ? "Creating booking..." : `Book Now — Pay ${formatTourPrice(totalPrice)} with YOCO`}
+                  {submitting ? "Redirecting to YOCO..." : `Pay ${formatTourPrice(totalPrice)} with YOCO`}
                 </button>
               </form>
             </div>

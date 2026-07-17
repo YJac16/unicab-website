@@ -67,11 +67,10 @@ function TourBooking() {
   const loadAvailableDrivers = async () => {
     const { data, error } = await getAvailableDrivers(selectedDate, pax);
     if (error) {
-      console.error('Error loading drivers:', error);
-      // Fallback to local drivers
+      console.warn('Using local drivers (Supabase unavailable)');
       setAvailableDrivers(localDrivers);
     } else {
-      setAvailableDrivers(data || []);
+      setAvailableDrivers(data?.length ? data : localDrivers);
     }
     // Reset selected drivers when drivers change
     setSelectedDrivers([]);

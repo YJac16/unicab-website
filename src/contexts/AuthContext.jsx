@@ -29,7 +29,7 @@ export const AuthProvider = ({ children }) => {
         .single();
 
       // If profiles table doesn't exist or returns error, try user_roles table
-      if (error && error.code !== 'PGRST116') {
+      if (error && error.code !== 'PGRST116' && !String(error.message || '').includes('Failed to fetch')) {
         console.log('Profiles table not found, trying user_roles...', error);
         const result = await supabase
           .from('user_roles')
@@ -42,7 +42,9 @@ export const AuthProvider = ({ children }) => {
       }
 
       if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching user role:', error);
+        if (!String(error.message || '').includes('Failed to fetch')) {
+          console.error('Error fetching user role:', error);
+        }
         setUserRole('customer');
         return;
       }
@@ -51,7 +53,9 @@ export const AuthProvider = ({ children }) => {
       setUserRole(role);
       console.log('User role fetched:', role, 'for user:', userId);
     } catch (error) {
-      console.error('Error fetching user role:', error);
+      if (!String(error?.message || '').includes('Failed to fetch')) {
+        console.error('Error fetching user role:', error);
+      }
       setUserRole('customer');
     }
   };
@@ -110,8 +114,11 @@ export const AuthProvider = ({ children }) => {
     // Listen for auth state changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, session?.user?.id);
+      } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // INITIAL_SESSION with no user is normal for anonymous visitors
+      if (event !== 'INITIAL_SESSION' || session?.user) {
+        console.log('Auth state changed:', event, session?.user?.id || 'anonymous');
+      }
       
       if (event === 'SIGNED_OUT' || !session?.user) {
         // Clear all auth state on sign out

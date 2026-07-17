@@ -23,44 +23,26 @@ function Drivers() {
     const loadDriversAndReviews = async () => {
       setLoading(true);
       try {
-        // Try to get drivers from database
-        const { data: dbDrivers, error } = await getDrivers();
-        if (!error && dbDrivers && dbDrivers.length > 0) {
-          setDrivers(dbDrivers);
-          
-          // Load Supabase reviews for each driver
-          const reviewsMap = {};
-          const ratingsMap = {};
-          
-          for (const driver of dbDrivers) {
-            if (driver.id) {
-              const { data: driverReviewsList } = await getDriverReviews(driver.id);
-              const { data: stats } = await getDriverReviewStats(driver.id);
-              
-              if (driverReviewsList?.length) {
-                reviewsMap[driver.id] = driverReviewsList;
-              }
-              ratingsMap[driver.id] = stats?.average > 0 ? stats.average : (driver.rating || null);
-            }
-          }
-          
-          setDriverReviews(reviewsMap);
-          setDriverRatings(ratingsMap);
-        } else {
-          // Fallback to local data
-          setDrivers(localDrivers);
-          const reviewsMap = {};
-          const ratingsMap = {};
-          localDrivers.forEach((driver) => {
-            reviewsMap[driver.name] = [];
-            ratingsMap[driver.name] = driver.rating || null;
-          });
-          setDriverReviews(reviewsMap);
-          setDriverRatings(ratingsMap);
+        const { data: dbDrivers } = await getDrivers();
+        const driverList = dbDrivers?.length ? dbDrivers : localDrivers;
+        setDrivers(driverList);
+
+        const reviewsMap = {};
+        const ratingsMap = {};
+
+        for (const driver of driverList) {
+          const key = driver.id || driver.name;
+          if (!key) continue;
+          const { data: driverReviewsList } = await getDriverReviews(key);
+          const { data: stats } = await getDriverReviewStats(key);
+          reviewsMap[key] = driverReviewsList || [];
+          ratingsMap[key] = stats?.average > 0 ? stats.average : (driver.rating || null);
         }
+
+        setDriverReviews(reviewsMap);
+        setDriverRatings(ratingsMap);
       } catch (err) {
-        console.error('Error loading drivers:', err);
-        // Fallback to local data
+        console.warn('Using local drivers (Supabase unavailable)');
         setDrivers(localDrivers);
       } finally {
         setLoading(false);
@@ -298,11 +280,13 @@ function Drivers() {
                                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
                                     <div>
                                       <strong style={{ fontSize: "0.9rem" }}>
-                                        Anonymous
+                                        {review.reviewer_name || "Guest"}
                                       </strong>
-                                      <p style={{ fontSize: "0.8rem", color: "var(--text-soft)", margin: "0.25rem 0 0 0" }}>
-                                        {new Date(review.created_at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
-                                      </p>
+                                      {review.created_at && (
+                                        <p style={{ fontSize: "0.8rem", color: "var(--text-soft)", margin: "0.25rem 0 0 0" }}>
+                                          {new Date(review.created_at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+                                        </p>
+                                      )}
                                     </div>
                                     <div className="rating">
                                       <span className="stars" aria-hidden="true" style={{ fontSize: "0.9rem" }}>

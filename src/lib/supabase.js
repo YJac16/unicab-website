@@ -1,15 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
+const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+
+const PLACEHOLDER_URL = 'https://placeholder.supabase.co';
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('Supabase environment variables not set. Using mock mode.');
+  console.warn('Supabase environment variables not set. Using local/offline mode.');
 }
 
-// Create Supabase client with cookie persistence
 export const supabase = createClient(
-  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseUrl || PLACEHOLDER_URL,
   supabaseAnonKey || 'placeholder-key',
   {
     auth: {
@@ -22,13 +23,26 @@ export const supabase = createClient(
   }
 );
 
-// Helper function to check if Supabase is configured
+/** True when Vite env vars look configured (may still be unreachable). */
 export const isSupabaseConfigured = () => {
-  return !!(supabaseUrl && supabaseAnonKey && 
-           supabaseUrl !== 'https://placeholder.supabase.co');
+  return !!(
+    supabaseUrl &&
+    supabaseAnonKey &&
+    supabaseUrl !== PLACEHOLDER_URL &&
+    !supabaseUrl.includes('placeholder')
+  );
 };
 
-
-
-
-
+/** Detect network / DNS / offline Supabase failures */
+export const isSupabaseNetworkError = (error) => {
+  if (!error) return false;
+  const message = String(error.message || error.details || error || '').toLowerCase();
+  return (
+    message.includes('failed to fetch') ||
+    message.includes('networkerror') ||
+    message.includes('err_name_not_resolved') ||
+    message.includes('load failed') ||
+    message.includes('network request failed') ||
+    error.name === 'TypeError'
+  );
+};

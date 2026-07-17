@@ -1,7 +1,69 @@
-import { supabase, isSupabaseConfigured } from './supabase';
+import { supabase, isSupabaseConfigured, isSupabaseNetworkError } from './supabase';
 import { calculateTourPrice, getPriceForGroupSize, formatTourPrice } from './pricing';
 
 export { calculateTourPrice, getPriceForGroupSize, formatTourPrice };
+
+const isUuid = (value) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
+
+const LOCAL_TOUR_REVIEWS_KEY = 'unicab_local_tour_reviews';
+const LOCAL_DRIVER_REVIEWS_KEY = 'unicab_local_driver_reviews';
+
+const readLocalStorageJson = (key) => {
+  try {
+    if (typeof window === 'undefined') return [];
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeLocalStorageJson = (key, value) => {
+  try {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // ignore quota / private mode
+  }
+};
+
+const getLocalDriversFallback = async () => {
+  const { drivers } = await import('../data');
+  return (drivers || []).map((driver, index) => ({
+    ...driver,
+    id: driver.id || `local-${index}-${driver.name}`,
+    active: true,
+  }));
+};
+
+const getStaticTourReviews = async (tourId) => {
+  const { reviews } = await import('../data');
+  const staticReviews = (reviews || [])
+    .filter((review) => review.tourId === tourId)
+    .map((review, index) => ({
+      id: `static-${tourId}-${index}`,
+      tour_id: tourId,
+      rating: Math.round(review.rating || 5),
+      comment: review.text,
+      reviewer_name: review.name,
+      approved: true,
+      created_at: null,
+    }));
+  const stored = readLocalStorageJson(LOCAL_TOUR_REVIEWS_KEY).filter(
+    (review) => review.tour_id === tourId && review.approved !== false
+  );
+  return [...stored, ...staticReviews];
+};
+
+const getStaticDriverReviews = async (driverKey) => {
+  const key = String(driverKey || '');
+  const stored = readLocalStorageJson(LOCAL_DRIVER_REVIEWS_KEY).filter(
+    (review) =>
+      (review.driver_key === key || review.driver_id === key) && review.approved !== false
+  );
+  return stored;
+};
 
 // API Base URL - use backend Express server
 // In development, Vite proxy handles /api routes, so we use relative URLs
@@ -134,24 +196,34 @@ const apiCall = async (endpoint, options = {}) => {
 
 // Tours API
 export const getTours = async () => {
+  const { tours } = await import('../data');
+
   // Try backend API first
-  const backendResult = await apiCall('/api/tours');
-  if (backendResult.data && backendResult.data.length > 0) {
-    return backendResult;
+  try {
+    const backendResult = await apiCall('/api/tours');
+    if (backendResult.data && backendResult.data.length > 0) {
+      return backendResult;
+    }
+  } catch {
+    // continue to fallbacks
   }
 
   // Fallback to Supabase
   if (isSupabaseConfigured()) {
-    const { data, error } = await supabase
-      .from('tours')
-      .select('*')
-      .eq('active', true)
-      .order('name');
-    if (data) return { data, error };
+    try {
+      const { data, error } = await supabase
+        .from('tours')
+        .select('*')
+        .eq('active', true)
+        .order('name');
+      if (!error && !isSupabaseNetworkError(error) && data?.length) {
+        return { data, error: null };
+      }
+    } catch {
+      // use local data
+    }
   }
 
-  // Final fallback to local data
-  const { tours } = await import('../data');
   return { data: tours, error: null };
 };
 
@@ -163,60 +235,68 @@ export const getTour = async (id) => {
     return { data: localTour || null, error: localTour ? null : { message: 'Tour not found' } };
   }
 
-  let { data, error } = await supabase
-    .from('tours')
-    .select('*')
-    .eq('id', id)
-    .eq('active', true)
-    .maybeSingle();
-
-  if (!data && !error) {
-    ({ data, error } = await supabase
+  try {
+    let { data, error } = await supabase
       .from('tours')
       .select('*')
-      .eq('slug', id)
+      .eq('id', id)
       .eq('active', true)
-      .maybeSingle());
-  }
+      .maybeSingle();
 
-  if (error) {
-    return { data: localTour || null, error: localTour ? null : error };
-  }
+    if (isSupabaseNetworkError(error)) {
+      return { data: localTour || null, error: localTour ? null : error };
+    }
 
-  if (!data) {
-    return { data: localTour || null, error: localTour ? null : { message: 'Tour not found' } };
-  }
+    if (!data && !error) {
+      ({ data, error } = await supabase
+        .from('tours')
+        .select('*')
+        .eq('slug', id)
+        .eq('active', true)
+        .maybeSingle());
+    }
 
-  if (localTour) {
+    if (error || isSupabaseNetworkError(error)) {
+      return { data: localTour || null, error: localTour ? null : error };
+    }
+
+    if (!data) {
+      return { data: localTour || null, error: localTour ? null : { message: 'Tour not found' } };
+    }
+
+    if (localTour) {
+      return {
+        data: {
+          ...localTour,
+          ...data,
+          id: localTour.id,
+          name: data.name || localTour.name,
+          description: data.description || localTour.description,
+          duration: data.duration || localTour.duration,
+          duration_hours: data.duration_hours ?? localTour.duration_hours,
+          pricing: data.pricing || localTour.pricing,
+          getPrice: localTour.getPrice,
+          image: data.image_url || localTour.image,
+          priceFrom: data.price_from || localTour.priceFrom,
+          highlights: data.highlights || localTour.highlights,
+          promotion: data.promotion ?? localTour.promotion,
+          rating: localTour.rating,
+        },
+        error: null,
+      };
+    }
+
     return {
       data: {
-        ...localTour,
         ...data,
-        id: data.id || localTour.id,
-        name: data.name || localTour.name,
-        description: data.description || localTour.description,
-        duration: data.duration || localTour.duration,
-        duration_hours: data.duration_hours ?? localTour.duration_hours,
-        pricing: data.pricing || localTour.pricing,
-        getPrice: localTour.getPrice,
-        image: data.image_url || localTour.image,
-        priceFrom: data.price_from || localTour.priceFrom,
-        highlights: data.highlights || localTour.highlights,
-        promotion: data.promotion ?? localTour.promotion,
-        rating: localTour.rating,
+        image: data.image_url,
+        priceFrom: data.price_from,
       },
       error: null,
     };
+  } catch (error) {
+    return { data: localTour || null, error: localTour ? null : error };
   }
-
-  return {
-    data: {
-      ...data,
-      image: data.image_url,
-      priceFrom: data.price_from,
-    },
-    error: null,
-  };
 };
 
 // Guides API (using backend Express routes)
@@ -246,21 +326,30 @@ export const getAvailableGuides = async (date) => {
 // This old version has been removed to avoid duplicate declaration
 
 export const getDrivers = async () => {
+  const localDrivers = await getLocalDriversFallback();
+
   if (!isSupabaseConfigured()) {
-    const { drivers } = await import('../data');
-    return { data: drivers, error: null };
+    return { data: localDrivers, error: null };
   }
 
-  const { data, error } = await supabase
-    .from('drivers')
-    .select(`
-      *,
-      vehicles (*)
-    `)
-    .eq('active', true)
-    .order('name');
+  try {
+    const { data, error } = await supabase
+      .from('drivers')
+      .select(`
+        *,
+        vehicles (*)
+      `)
+      .eq('active', true)
+      .order('name');
 
-  return { data, error };
+    if (error || isSupabaseNetworkError(error) || !data?.length) {
+      return { data: localDrivers, error: null };
+    }
+
+    return { data, error: null };
+  } catch {
+    return { data: localDrivers, error: null };
+  }
 };
 
 // Bookings API
@@ -543,12 +632,41 @@ export const getReviews = async (filters = {}) => {
   return { data, error };
 };
 
-// YOCO payment only
-export const createYocoPayment = async (amount, bookingRef) => {
-  return apiCall('/api/payments/create-payment', {
+// YOCO payment only — redirects customer to Yoco hosted checkout
+export const createYocoPayment = async (amount, bookingRef, options = {}) => {
+  const result = await apiCall('/api/payments/create-payment', {
     method: 'POST',
-    body: JSON.stringify({ amount, bookingRef, booking_id: bookingRef }),
+    body: JSON.stringify({
+      amount,
+      bookingRef,
+      booking_id: bookingRef,
+      description: options.description || undefined,
+    }),
   });
+
+  if (result.error) return result;
+
+  const redirectUrl =
+    result.data?.redirectUrl ||
+    result.data?.data?.redirectUrl ||
+    result.redirectUrl ||
+    null;
+
+  if (!redirectUrl) {
+    return {
+      data: null,
+      error: { message: 'Payment gateway did not return a checkout URL' },
+    };
+  }
+
+  return {
+    data: {
+      ...(typeof result.data === 'object' && result.data ? result.data : {}),
+      redirectUrl,
+      checkoutId: result.data?.checkoutId || result.data?.data?.checkoutId || null,
+    },
+    error: null,
+  };
 };
 
 export const confirmYocoPayment = async (bookingRef) => {
@@ -1038,61 +1156,70 @@ export const overrideDriverAvailability = async (driverId, date, available, reas
 // Get available drivers for a date
 // Accepts optional groupSize parameter for backward compatibility (not currently used)
 export const getAvailableDrivers = async (date, groupSize = null) => {
+  const localDrivers = await getLocalDriversFallback();
+
   if (!isSupabaseConfigured()) {
-    return { data: null, error: { message: 'Supabase not configured' } };
+    return { data: localDrivers, error: null };
   }
 
   try {
-    // Use the helper function from database
     const { data, error } = await supabase.rpc('get_available_drivers', {
       check_date: date
     });
 
-    return { data, error };
-  } catch (error) {
-    // Fallback: manual query if RPC doesn't work
-    try {
-      const { data: drivers, error: driversError } = await supabase
-        .from('drivers')
-        .select('*')
-        .eq('active', true);
-
-      if (driversError) {
-        return { data: null, error: driversError };
-      }
-
-      // Filter drivers who are available
-      const availableDrivers = [];
-      for (const driver of drivers || []) {
-        // Check if driver has booking on this date
-        const { data: booking } = await supabase
-          .from('bookings')
-          .select('id')
-          .eq('driver_id', driver.id)
-          .eq('booking_date', date)
-          .in('status', ['pending', 'confirmed'])
-          .single();
-
-        if (booking) continue;
-
-        // Check availability
-        const { data: availability } = await supabase
-          .from('driver_availability')
-          .select('available')
-          .eq('driver_id', driver.id)
-          .eq('date', date)
-          .single();
-
-        const isAvailable = availability ? availability.available : true;
-        if (isAvailable) {
-          availableDrivers.push(driver);
-        }
-      }
-
-      return { data: availableDrivers, error: null };
-    } catch (fallbackError) {
-      return { data: null, error: fallbackError };
+    if (!error && Array.isArray(data)) {
+      return { data, error: null };
     }
+
+    if (isSupabaseNetworkError(error)) {
+      return { data: localDrivers, error: null };
+    }
+
+    // Fallback: manual query if RPC doesn't exist / fails
+    const { data: drivers, error: driversError } = await supabase
+      .from('drivers')
+      .select('*')
+      .eq('active', true);
+
+    if (driversError || isSupabaseNetworkError(driversError) || !drivers?.length) {
+      return { data: localDrivers, error: null };
+    }
+
+    const availableDrivers = [];
+    for (const driver of drivers) {
+      const { data: booking, error: bookingError } = await supabase
+        .from('bookings')
+        .select('id')
+        .eq('driver_id', driver.id)
+        .eq('booking_date', date)
+        .in('status', ['reserved', 'pending', 'confirmed'])
+        .maybeSingle();
+
+      if (isSupabaseNetworkError(bookingError)) {
+        return { data: localDrivers, error: null };
+      }
+      if (booking) continue;
+
+      const { data: availability, error: availabilityError } = await supabase
+        .from('driver_availability')
+        .select('available')
+        .eq('driver_id', driver.id)
+        .eq('date', date)
+        .maybeSingle();
+
+      if (isSupabaseNetworkError(availabilityError)) {
+        return { data: localDrivers, error: null };
+      }
+
+      const isAvailable = availability ? availability.available : true;
+      if (isAvailable) {
+        availableDrivers.push(driver);
+      }
+    }
+
+    return { data: availableDrivers.length ? availableDrivers : localDrivers, error: null };
+  } catch {
+    return { data: localDrivers, error: null };
   }
 };
 
@@ -1120,78 +1247,79 @@ export const register = async (userData) => {
   });
 };
 
-// Reviews API - Supabase review tables
+// Reviews API - Supabase review tables with local fallbacks
 export const getTourReviews = async (tourId) => {
+  const localReviews = await getStaticTourReviews(tourId);
+
   if (!isSupabaseConfigured()) {
-    return { data: [], error: null };
+    return { data: localReviews, error: null };
   }
-  const { data, error } = await supabase
-    .from('tour_reviews')
-    .select('*')
-    .eq('tour_id', tourId)
-    .eq('approved', true)
-    .order('created_at', { ascending: false });
-  
-  // Note: We can't directly query auth.users from client
-  // User info will be handled in the display component
-  
-  return { data, error };
+
+  try {
+    const { data, error } = await supabase
+      .from('tour_reviews')
+      .select('*')
+      .eq('tour_id', String(tourId))
+      .eq('approved', true)
+      .order('created_at', { ascending: false });
+
+    if (error || isSupabaseNetworkError(error)) {
+      return { data: localReviews, error: null };
+    }
+
+    return { data: [...(data || []), ...localReviews], error: null };
+  } catch {
+    return { data: localReviews, error: null };
+  }
 };
 
 export const getDriverReviews = async (driverId) => {
+  const localReviews = await getStaticDriverReviews(driverId);
+
   if (!isSupabaseConfigured()) {
-    return { data: [], error: null };
+    return { data: localReviews, error: null };
   }
-  const { data, error } = await supabase
-    .from('driver_reviews')
-    .select('*')
-    .eq('driver_id', driverId)
-    .eq('approved', true)
-    .order('created_at', { ascending: false });
-  
-  // Note: We can't directly query auth.users from client
-  // User info will be handled in the display component
-  
-  return { data, error };
+
+  try {
+    let query = supabase
+      .from('driver_reviews')
+      .select('*')
+      .eq('approved', true)
+      .order('created_at', { ascending: false });
+
+    if (isUuid(driverId)) {
+      query = query.eq('driver_id', driverId);
+    } else {
+      query = query.eq('driver_key', String(driverId));
+    }
+
+    const { data, error } = await query;
+
+    if (error || isSupabaseNetworkError(error)) {
+      return { data: localReviews, error: null };
+    }
+
+    return { data: [...(data || []), ...localReviews], error: null };
+  } catch {
+    return { data: localReviews, error: null };
+  }
 };
 
 export const getTourReviewStats = async (tourId) => {
-  if (!isSupabaseConfigured()) {
-    return { data: { average: 0, count: 0 }, error: null };
-  }
-  const { data, error } = await supabase
-    .from('tour_reviews')
-    .select('rating')
-    .eq('tour_id', tourId)
-    .eq('approved', true);
-  
-  if (error) return { data: { average: 0, count: 0 }, error };
-  
-  const count = data?.length || 0;
-  const average = count > 0 
-    ? data.reduce((sum, r) => sum + r.rating, 0) / count 
+  const { data: reviews } = await getTourReviews(tourId);
+  const count = reviews?.length || 0;
+  const average = count > 0
+    ? reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / count
     : 0;
-  
   return { data: { average, count }, error: null };
 };
 
 export const getDriverReviewStats = async (driverId) => {
-  if (!isSupabaseConfigured()) {
-    return { data: { average: 0, count: 0 }, error: null };
-  }
-  const { data, error } = await supabase
-    .from('driver_reviews')
-    .select('rating')
-    .eq('driver_id', driverId)
-    .eq('approved', true);
-  
-  if (error) return { data: { average: 0, count: 0 }, error };
-  
-  const count = data?.length || 0;
-  const average = count > 0 
-    ? data.reduce((sum, r) => sum + r.rating, 0) / count 
+  const { data: reviews } = await getDriverReviews(driverId);
+  const count = reviews?.length || 0;
+  const average = count > 0
+    ? reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / count
     : 0;
-  
   return { data: { average, count }, error: null };
 };
 
@@ -1200,69 +1328,150 @@ export const verifyCustomerBooking = async (bookingId, userId) => {
     return { data: { exists: false, completed: false }, error: null };
   }
 
-  const { data, error } = await supabase
-    .from('bookings')
-    .select('id, status, payment_status, user_id')
-    .eq('id', bookingId)
-    .eq('user_id', userId)
-    .maybeSingle();
+  try {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('id, status, payment_status, user_id')
+      .eq('id', bookingId)
+      .eq('user_id', userId)
+      .maybeSingle();
 
-  if (error) return { data: { exists: false, completed: false }, error };
+    if (error || isSupabaseNetworkError(error)) {
+      return { data: { exists: false, completed: false }, error: null };
+    }
 
-  const completed =
-    data &&
-    (data.status === 'confirmed' || data.status === 'completed' || data.payment_status === 'paid');
+    const completed =
+      data &&
+      (data.status === 'confirmed' || data.status === 'completed' || data.payment_status === 'paid');
 
-  return {
-    data: {
-      exists: !!data,
-      completed: !!completed,
-      booking: data || null
-    },
-    error: null
+    return {
+      data: {
+        exists: !!data,
+        completed: !!completed,
+        booking: data || null
+      },
+      error: null
+    };
+  } catch {
+    return { data: { exists: false, completed: false }, error: null };
+  }
+};
+
+export const submitTourReview = async ({ tourId, bookingId, userId, rating, comment, reviewerName }) => {
+  const payload = {
+    tour_id: String(tourId),
+    booking_id: bookingId || null,
+    user_id: userId,
+    rating,
+    comment: comment.trim(),
+    reviewer_name: reviewerName || null,
+    approved: false
   };
-};
 
-export const submitTourReview = async ({ tourId, bookingId, userId, rating, comment }) => {
   if (!isSupabaseConfigured()) {
-    return { data: null, error: { message: 'Supabase not configured' } };
+    const localReview = {
+      id: `local-${Date.now()}`,
+      ...payload,
+      approved: true,
+      created_at: new Date().toISOString(),
+    };
+    const existing = readLocalStorageJson(LOCAL_TOUR_REVIEWS_KEY);
+    writeLocalStorageJson(LOCAL_TOUR_REVIEWS_KEY, [localReview, ...existing]);
+    return { data: localReview, error: null };
   }
 
-  const { data, error } = await supabase
-    .from('tour_reviews')
-    .insert({
-      tour_id: tourId,
-      booking_id: bookingId || null,
-      user_id: userId,
-      rating,
-      comment: comment.trim(),
-      approved: false
-    })
-    .select()
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('tour_reviews')
+      .insert(payload)
+      .select()
+      .single();
 
-  return { data, error };
+    if (error || isSupabaseNetworkError(error)) {
+      const localReview = {
+        id: `local-${Date.now()}`,
+        ...payload,
+        approved: true,
+        created_at: new Date().toISOString(),
+      };
+      const existing = readLocalStorageJson(LOCAL_TOUR_REVIEWS_KEY);
+      writeLocalStorageJson(LOCAL_TOUR_REVIEWS_KEY, [localReview, ...existing]);
+      return { data: localReview, error: null };
+    }
+
+    return { data, error: null };
+  } catch {
+    const localReview = {
+      id: `local-${Date.now()}`,
+      ...payload,
+      approved: true,
+      created_at: new Date().toISOString(),
+    };
+    const existing = readLocalStorageJson(LOCAL_TOUR_REVIEWS_KEY);
+    writeLocalStorageJson(LOCAL_TOUR_REVIEWS_KEY, [localReview, ...existing]);
+    return { data: localReview, error: null };
+  }
 };
 
-export const submitDriverReview = async ({ driverId, bookingId, userId, rating, comment }) => {
+export const submitDriverReview = async ({ driverId, bookingId, userId, rating, comment, reviewerName }) => {
+  const driverIsUuid = isUuid(driverId);
+  const payload = {
+    driver_id: driverIsUuid ? driverId : null,
+    driver_key: driverIsUuid ? null : String(driverId),
+    booking_id: bookingId || null,
+    user_id: userId,
+    rating,
+    comment: comment.trim(),
+    reviewer_name: reviewerName || null,
+    approved: false
+  };
+
   if (!isSupabaseConfigured()) {
-    return { data: null, error: { message: 'Supabase not configured' } };
+    const localReview = {
+      id: `local-${Date.now()}`,
+      ...payload,
+      driver_key: String(driverId),
+      approved: true,
+      created_at: new Date().toISOString(),
+    };
+    const existing = readLocalStorageJson(LOCAL_DRIVER_REVIEWS_KEY);
+    writeLocalStorageJson(LOCAL_DRIVER_REVIEWS_KEY, [localReview, ...existing]);
+    return { data: localReview, error: null };
   }
 
-  const { data, error } = await supabase
-    .from('driver_reviews')
-    .insert({
-      driver_id: driverId,
-      booking_id: bookingId || null,
-      user_id: userId,
-      rating,
-      comment: comment.trim(),
-      approved: false
-    })
-    .select()
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('driver_reviews')
+      .insert(payload)
+      .select()
+      .single();
 
-  return { data, error };
+    if (error || isSupabaseNetworkError(error)) {
+      const localReview = {
+        id: `local-${Date.now()}`,
+        ...payload,
+        driver_key: String(driverId),
+        approved: true,
+        created_at: new Date().toISOString(),
+      };
+      const existing = readLocalStorageJson(LOCAL_DRIVER_REVIEWS_KEY);
+      writeLocalStorageJson(LOCAL_DRIVER_REVIEWS_KEY, [localReview, ...existing]);
+      return { data: localReview, error: null };
+    }
+
+    return { data, error: null };
+  } catch {
+    const localReview = {
+      id: `local-${Date.now()}`,
+      ...payload,
+      driver_key: String(driverId),
+      approved: true,
+      created_at: new Date().toISOString(),
+    };
+    const existing = readLocalStorageJson(LOCAL_DRIVER_REVIEWS_KEY);
+    writeLocalStorageJson(LOCAL_DRIVER_REVIEWS_KEY, [localReview, ...existing]);
+    return { data: localReview, error: null };
+  }
 };
 
 // Admin Review Moderation API

@@ -123,10 +123,12 @@ create index if not exists idx_driver_availability_date
 create table if not exists public.driver_reviews (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  driver_id uuid not null references public.drivers(id) on delete cascade,
+  driver_id uuid references public.drivers(id) on delete cascade,
+  driver_key text,
   booking_id uuid references public.bookings(id) on delete set null,
   rating integer not null check (rating between 1 and 5),
   comment text,
+  reviewer_name text,
   approved boolean default false,
   created_at timestamptz default now()
 );
@@ -134,10 +136,11 @@ create table if not exists public.driver_reviews (
 create table if not exists public.tour_reviews (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  tour_id uuid not null references public.tours(id) on delete cascade,
+  tour_id text not null,
   booking_id uuid references public.bookings(id) on delete set null,
   rating integer not null check (rating between 1 and 5),
   comment text,
+  reviewer_name text,
   approved boolean default false,
   created_at timestamptz default now()
 );
@@ -342,7 +345,10 @@ begin
   if not exists (select 1 from pg_policies where schemaname='public' and tablename='driver_reviews' and policyname='Users insert own driver review') then
     create policy "Users insert own driver review" on public.driver_reviews for insert with check (
       auth.uid() = user_id
-      and exists (select 1 from public.bookings where id = booking_id and user_id = auth.uid())
+      and (
+        booking_id is null
+        or exists (select 1 from public.bookings where id = booking_id and user_id = auth.uid())
+      )
     );
   end if;
   if not exists (select 1 from pg_policies where schemaname='public' and tablename='driver_reviews' and policyname='Public read approved driver reviews') then
@@ -356,7 +362,10 @@ begin
   if not exists (select 1 from pg_policies where schemaname='public' and tablename='tour_reviews' and policyname='Users insert own tour review') then
     create policy "Users insert own tour review" on public.tour_reviews for insert with check (
       auth.uid() = user_id
-      and exists (select 1 from public.bookings where id = booking_id and user_id = auth.uid())
+      and (
+        booking_id is null
+        or exists (select 1 from public.bookings where id = booking_id and user_id = auth.uid())
+      )
     );
   end if;
   if not exists (select 1 from pg_policies where schemaname='public' and tablename='tour_reviews' and policyname='Public read approved tour reviews') then
@@ -366,6 +375,37 @@ begin
     create policy "Admins manage tour reviews" on public.tour_reviews for all using (public.is_admin()) with check (public.is_admin());
   end if;
 end $$;
+
+-- Available drivers for booking flow
+create or replace function public.get_available_drivers(check_date date)
+returns setof public.drivers
+language sql
+security definer
+set search_path = public
+as $$
+  select d.*
+  from public.drivers d
+  where d.active = true
+    and not exists (
+      select 1 from public.bookings b
+      where b.driver_id = d.id
+        and b.booking_date = check_date
+        and b.status in ('reserved', 'pending', 'confirmed')
+    )
+    and coalesce(
+      (
+        select da.available
+        from public.driver_availability da
+        where da.driver_id = d.id
+          and da.date = check_date
+        limit 1
+      ),
+      true
+    ) = true
+  order by d.name;
+$$;
+
+grant execute on function public.get_available_drivers(date) to anon, authenticated;
 
 -- =========================
 -- SEED ROLES (optional — skipped if users do not exist)
