@@ -29,7 +29,7 @@ export default function TaxiLanding() {
         </div>
 
         <p className="taxi-landing-footnote">
-          Simulated data only — no live GPS or payments. Travel &amp; Tours stays on Vercel.
+          Simulated data only — no live GPS or payments. Travel &amp; Tours brochure is a separate Vercel project.
         </p>
       </main>
     </div>
