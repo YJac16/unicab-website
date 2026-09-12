@@ -1,9 +1,11 @@
 import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AdminRouteGuard } from "./components/AdminRouteGuard";
 import { DriverRouteGuard } from "./components/DriverRouteGuard";
-import Home from "./pages/Home";
+import TaxiLanding from "./pages/taxi/TaxiLanding";
+import RiderApp from "./pages/taxi/RiderApp";
+import DriverApp from "./pages/taxi/DriverApp";
 import Tours from "./pages/Tours";
 import TourDetail from "./pages/TourDetail";
 import TourBooking from "./pages/TourBooking";
@@ -38,12 +40,26 @@ import PaymentFailed from "./pages/PaymentFailed";
 import BookingConfirmation from "./pages/BookingConfirmation";
 import CookieConsent from "./components/CookieConsent";
 import "./styles.css";
+import "./taxi/taxi.css";
 
-function App() {
+const TAXI_PATHS = ["/", "/ride", "/drive"];
+
+function CookieConsentGate() {
+  const { pathname } = useLocation();
+  if (TAXI_PATHS.includes(pathname)) return null;
+  return <CookieConsent />;
+}
+
+function AppRoutes() {
   return (
-    <BrowserRouter>
+    <>
       <Routes>
-        <Route path="/" element={<Home />} />
+        {/* UNICAB TAXI pitch demo (public face) */}
+        <Route path="/" element={<TaxiLanding />} />
+        <Route path="/ride" element={<RiderApp />} />
+        <Route path="/drive" element={<DriverApp />} />
+
+        {/* Legacy travel/ops routes — unchanged, not linked from taxi demo */}
         <Route path="/tours" element={<Tours />} />
         <Route path="/tours/:id" element={<TourDetail />} />
         <Route path="/tours/:id/booking" element={<TourBooking />} />
@@ -51,7 +67,6 @@ function App() {
         <Route path="/tours/:id/transaction" element={<TourTransaction />} />
         <Route path="/tours/:id/checkout" element={<TourCheckout />} />
         <Route path="/tours/:id/confirmation" element={<TourConfirmation />} />
-        {/* Unified Book Now entry → custom Supabase booking via tours */}
         <Route path="/book" element={<Navigate to="/tours" replace />} />
         <Route path="/booking-confirmation" element={<BookingConfirmation />} />
         <Route path="/payment-success" element={<PaymentSuccess />} />
@@ -80,7 +95,15 @@ function App() {
         <Route path="/unauthorized" element={<Unauthorized />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
       </Routes>
-      <CookieConsent />
+      <CookieConsentGate />
+    </>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AppRoutes />
     </BrowserRouter>
   );
 }
