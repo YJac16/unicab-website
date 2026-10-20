@@ -26,17 +26,19 @@ SPA routes (`/ride`, `/drive`, legacy `/tours/*`, etc.) are handled by the catch
 
 | Route | Role |
 |-------|------|
-| `/` | Landing — choose Rider or Driver |
-| `/ride` | Passenger flow: map → confirm → waiting → in-trip → rate |
-| `/drive` | Driver flow: online/offline → accept job → pickup → start → complete |
+| `/` | Landing — ride, drive, or dispatch. Light and dark themes |
+| `/ride` | Passenger flow: pickup and drop-off, vehicle class, sample fare, confirm, trip, rate |
+| `/drive` | Partner flow: online/offline → accept job → pickup → start → complete. No fares |
+| `/dispatch` | Sample operations board. Assignments stay in the browser |
 
-Every screen shows a **“Demo — simulated trips”** banner.
+Every screen shows a small **Demo** badge. Trips, riders, and fares are sample data.
 
 ## Tech
 
 - **Vite + React** static SPA (`npm run build` → `dist/`)
 - **Leaflet + OpenStreetMap** tiles (no Mapbox, no API keys)
 - **Client-side mock data** in `src/taxi/mockData.js` (Cape Town CBD, Waterfront, Airport, etc.)
+- Light and dark themes, stored only in the browser
 - Legacy `/api/*` serverless handlers remain for old travel ops but are **not** used by the taxi demo
 
 ## Finance / infra constraints (Sep 2026)

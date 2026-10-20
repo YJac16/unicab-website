@@ -7,35 +7,37 @@ import { CAPE_TOWN_CENTER } from "../../taxi/mockData";
 const OSM_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
-const defaultIcon = L.icon({
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
+const pickupIcon = L.divIcon({
+  className: "taxi-marker",
+  html: '<div class="taxi-marker-pickup"></div>',
+  iconSize: [16, 16],
+  iconAnchor: [8, 8],
+});
+
+const dropoffIcon = L.divIcon({
+  className: "taxi-marker",
+  html: '<div class="taxi-marker-dropoff"></div>',
+  iconSize: [16, 16],
+  iconAnchor: [8, 8],
 });
 
 const driverIcon = L.divIcon({
-  className: "taxi-driver-marker",
-  html: '<div class="taxi-driver-marker-inner"></div>',
-  iconSize: [28, 28],
-  iconAnchor: [14, 14],
-});
-
-const pickupIcon = L.divIcon({
-  className: "taxi-pickup-marker",
-  html: '<div class="taxi-pickup-marker-inner"></div>',
-  iconSize: [16, 16],
-  iconAnchor: [8, 8],
+  className: "taxi-marker",
+  html: '<div class="taxi-marker-driver"><span>U</span></div>',
+  iconSize: [32, 32],
+  iconAnchor: [16, 16],
 });
 
 function MapResizeFix() {
   const map = useMap();
   useEffect(() => {
-    const t = setTimeout(() => map.invalidateSize(), 100);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => map.invalidateSize(), 120);
+    const onResize = () => map.invalidateSize();
+    window.addEventListener("resize", onResize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", onResize);
+    };
   }, [map]);
   return null;
 }
@@ -43,9 +45,20 @@ function MapResizeFix() {
 function FitBounds({ points }) {
   const map = useMap();
   useEffect(() => {
-    if (!points?.length) return;
-    const bounds = L.latLngBounds(points.map((p) => [p.lat, p.lng]));
-    map.fitBounds(bounds, { padding: [48, 48], maxZoom: 14 });
+    if (!points?.length) return undefined;
+    const bounds = L.latLngBounds(points.map((point) => [point.lat, point.lng]));
+    const apply = () => {
+      const wide = window.innerWidth >= 960;
+      map.fitBounds(bounds, {
+        paddingTopLeft: wide ? [460, 88] : [28, 78],
+        paddingBottomRight: wide ? [48, 48] : [28, 320],
+        maxZoom: 15,
+        animate: false,
+      });
+    };
+    apply();
+    window.addEventListener("resize", apply);
+    return () => window.removeEventListener("resize", apply);
   }, [map, points]);
   return null;
 }
@@ -58,8 +71,10 @@ export default function TaxiMap({
   driverPos,
   route = [],
   fitRoute = false,
+  theme = "light",
 }) {
-  const routeLatLngs = route.map((p) => [p.lat, p.lng]);
+  const routeLatLngs = route.map((point) => [point.lat, point.lng]);
+  const line = theme === "dark" ? "#C9A86A" : "#7A6430";
 
   return (
     <div className="taxi-map-wrap">
@@ -69,6 +84,8 @@ export default function TaxiMap({
         scrollWheelZoom
         className="taxi-map"
         zoomControl={false}
+        attributionControl
+        aria-label="Sample map of Cape Town"
       >
         <TileLayer
           attribution={OSM_ATTRIBUTION}
@@ -76,17 +93,13 @@ export default function TaxiMap({
         />
         <MapResizeFix />
         {fitRoute && route.length > 0 && <FitBounds points={route} />}
-        {pickup && (
-          <Marker position={[pickup.lat, pickup.lng]} icon={pickupIcon} />
-        )}
-        {dropoff && (
-          <Marker position={[dropoff.lat, dropoff.lng]} icon={defaultIcon} />
-        )}
+        {pickup && <Marker position={[pickup.lat, pickup.lng]} icon={pickupIcon} alt="Pickup" />}
+        {dropoff && <Marker position={[dropoff.lat, dropoff.lng]} icon={dropoffIcon} alt="Drop-off" />}
         {driverPos && (
-          <Marker position={[driverPos.lat, driverPos.lng]} icon={driverIcon} />
+          <Marker position={[driverPos.lat, driverPos.lng]} icon={driverIcon} alt="Sample partner" />
         )}
         {routeLatLngs.length > 1 && (
-          <Polyline positions={routeLatLngs} pathOptions={{ color: "#1a1a1a", weight: 5, opacity: 0.85 }} />
+          <Polyline positions={routeLatLngs} pathOptions={{ color: line, weight: 5, opacity: 0.95 }} />
         )}
       </MapContainer>
     </div>

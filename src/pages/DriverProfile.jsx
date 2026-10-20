@@ -287,7 +287,7 @@ function DriverProfile() {
       <header className="site-header">
         <div className="container header-inner">
           <Link to="/" className="logo" aria-label="UNICAB Travel & Tours - Home">
-            <img src="/logo-white.png" alt="UNICAB Travel & Tours" className="logo-img" />
+            <img src="/logo-black.png" alt="UNICAB" className="logo-img" />
           </Link>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
             <ProfileDropdown />

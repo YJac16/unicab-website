@@ -6,6 +6,7 @@ import { DriverRouteGuard } from "./components/DriverRouteGuard";
 import TaxiLanding from "./pages/taxi/TaxiLanding";
 import RiderApp from "./pages/taxi/RiderApp";
 import DriverApp from "./pages/taxi/DriverApp";
+import DispatchApp from "./pages/taxi/DispatchApp";
 import Tours from "./pages/Tours";
 import TourDetail from "./pages/TourDetail";
 import TourBooking from "./pages/TourBooking";
@@ -42,7 +43,7 @@ import CookieConsent from "./components/CookieConsent";
 import "./styles.css";
 import "./taxi/taxi.css";
 
-const TAXI_PATHS = ["/", "/ride", "/drive"];
+const TAXI_PATHS = ["/", "/ride", "/drive", "/dispatch"];
 
 function CookieConsentGate() {
   const { pathname } = useLocation();
@@ -58,6 +59,7 @@ function AppRoutes() {
         <Route path="/" element={<TaxiLanding />} />
         <Route path="/ride" element={<RiderApp />} />
         <Route path="/drive" element={<DriverApp />} />
+        <Route path="/dispatch" element={<DispatchApp />} />
 
         {/* Legacy travel/ops routes — unchanged, not linked from taxi demo */}
         <Route path="/tours" element={<Tours />} />
