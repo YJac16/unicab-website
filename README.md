@@ -26,10 +26,11 @@ SPA routes (`/ride`, `/drive`, legacy `/tours/*`, etc.) are handled by the catch
 
 | Route | Role |
 |-------|------|
-| `/` | Landing — ride, drive, or dispatch. Light and dark themes |
+| `/` | Landing — ride, drive, dispatch, or the control room. Light and dark themes |
 | `/ride` | Passenger flow for sample trip T-1048: request, partner on the way, arrived, live trip, arrival, rating and tip, receipt |
 | `/drive` | Same trip for the partner: online, request with fare and countdown, navigate, arrive, trip, sample earnings, today |
 | `/dispatch` | Sample operations board. Assignments stay in the browser |
+| `/control` | Control room for the same sample day: fleet map, KPIs, alerts, trip feed, partner table, charts |
 
 Every screen shows a small **Demo** badge. Trips, riders, and fares are sample data.
 

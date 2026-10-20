@@ -298,3 +298,25 @@ export const SAMPLE_GO_FARE = fareBreakdown(
 );
 const sampleTrip = DISPATCH_TRIPS.find((trip) => trip.id === SAMPLE_TRIP_ID);
 if (sampleTrip) sampleTrip.estimate = SAMPLE_GO_FARE.total;
+
+/** Sample clock for the control room. T-1047 is then 2 minutes old. */
+export const CONTROL_CLOCK = "12:20";
+
+/** Completed city trips beyond one partner's own list. Same places and fleet. */
+export const CONTROL_EXTRA_COMPLETED = [
+  { id: "T-1004", time: "07:10", from: "Cape Town CBD", to: "Sea Point", earn: 70, driverId: "leah", classId: "go" },
+  { id: "T-1008", time: "08:40", from: "V&A Waterfront", to: "Camps Bay", earn: 155, driverId: "zinhle", classId: "comfort" },
+  { id: "T-1015", time: "09:30", from: "Cape Town Airport", to: "Cape Town CBD", earn: 210, driverId: "andre", classId: "xl" },
+  { id: "T-1021", time: "11:05", from: "Woodstock", to: "Green Point", earn: 90, driverId: "leah", classId: "go" },
+];
+
+export const CONTROL_CANCELLATIONS = [
+  { id: "T-0994", time: "08:50", rider: "Mia J.", reason: "Rider cancelled" },
+  { id: "T-1001", time: "10:05", rider: "Owen L.", reason: "No partner nearby" },
+];
+
+/** Offers a partner did not take, besides the two cancellations. */
+export const CONTROL_DECLINES = 1;
+
+/** Pickup minutes on accepted sample trips. */
+export const CONTROL_PICKUP_MINUTES = [4, 3, 5, 4, 6, 3, 4, 5, 4, 3, 4];

@@ -329,6 +329,7 @@ body[data-taxi="dark"] { background: #0c0c0c; }
 
 .taxi-role-card:nth-child(2) { animation-delay: 0.06s; }
 .taxi-role-card:nth-child(3) { animation-delay: 0.12s; }
+.taxi-role-card:nth-child(4) { animation-delay: 0.18s; }
 
 .taxi-role-card:hover {
   transform: translateY(-3px);
@@ -1003,7 +1004,11 @@ body[data-taxi="dark"] { background: #0c0c0c; }
   background: var(--taxi-gold-soft);
   color: var(--taxi-gold-text);
 }
-.taxi-status-done { background: color-mix(in srgb, var(--taxi-ink) 8%, transparent); color: var(--taxi-muted); }
+.taxi-status-done,
+.taxi-status-idle { background: color-mix(in srgb, var(--taxi-ink) 8%, transparent); color: var(--taxi-muted); }
+.taxi-status-trip,
+.taxi-status-enroute,
+.taxi-status-online { background: var(--taxi-gold-soft); color: var(--taxi-gold-text); }
 .taxi-trip-fare { margin: 0.35rem 0 0; font-weight: 600; }
 .taxi-trip-fare strong { font-family: var(--taxi-display); font-size: 1.25rem; font-weight: 560; }
 
@@ -1313,7 +1318,7 @@ body[data-taxi="dark"] { background: #0c0c0c; }
   .taxi-hero { grid-template-columns: minmax(0, 1.15fr) 280px; }
   .taxi-phone { width: 260px; margin: 0; }
   .taxi-phone-screen { height: 460px; }
-  .taxi-roles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .taxi-roles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .taxi-dispatch { grid-template-columns: 300px 1fr; align-items: start; }
   .taxi-dispatch-intro { grid-column: 1 / -1; }
   .taxi-metrics { grid-template-columns: 1fr; }
@@ -1332,7 +1337,229 @@ body[data-taxi="dark"] { background: #0c0c0c; }
   .taxi-bottom-sheet-handle { display: none; }
 }
 
+@media (min-width: 1180px) {
+  .taxi-roles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
 @media (max-width: 380px) {
   .taxi-demo-badge { letter-spacing: 0.08em; padding-inline: 0.4rem; }
   .taxi-online { padding-inline: 0.5rem; }
+}
+
+.taxi-inline-link {
+  display: inline-flex;
+  margin-top: 0.75rem;
+  color: var(--taxi-gold-text);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.taxi-map-wrap.is-embedded {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+
+.taxi-fleet-pin {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  background: #141414;
+  color: #f6f3ec;
+  border: 2px solid #c9a86a;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.taxi-fleet-pin.is-online { background: #7a6430; color: #f6f3ec; }
+.taxi-fleet-pin.is-idle { background: #5e5850; border-color: #f6f3ec; }
+.taxi-pin-request .taxi-pin-dot { background: #c9a86a; border-radius: 2px; }
+
+.taxi-room {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: calc(var(--taxi-header) + 0.85rem) 1rem 1.6rem;
+}
+.taxi-room-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+}
+.taxi-room-head h1 {
+  margin: 0;
+  font-family: var(--taxi-display);
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 560;
+  letter-spacing: -0.03em;
+}
+.taxi-room-head .taxi-inline-link { margin-top: 0; }
+.taxi-room-main,
+.taxi-room-bottom,
+.taxi-room-side { display: flex; flex-direction: column; gap: 0.75rem; }
+
+.taxi-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.taxi-kpis article {
+  background: var(--taxi-card);
+  border: 1px solid var(--taxi-line);
+  border-radius: 14px;
+  padding: 0.7rem 0.75rem 0.75rem;
+}
+.taxi-kpis p {
+  margin: 0;
+  color: var(--taxi-faint);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.taxi-kpis strong {
+  display: block;
+  margin-top: 0.25rem;
+  font-family: var(--taxi-display);
+  font-size: 1.65rem;
+  font-weight: 560;
+  line-height: 1;
+}
+.taxi-kpis span { display: block; margin-top: 0.28rem; color: var(--taxi-muted); font-size: 0.75rem; }
+
+.taxi-room-map-card,
+.taxi-panel {
+  background: var(--taxi-card);
+  border: 1px solid var(--taxi-line);
+  border-radius: 16px;
+}
+.taxi-room-map {
+  position: relative;
+  height: 320px;
+  border-radius: inherit;
+  overflow: hidden;
+}
+.taxi-panel { padding: 0.85rem 0.9rem; }
+.taxi-panel h2 {
+  margin: 0 0 0.55rem;
+  font-family: var(--taxi-display);
+  font-size: 1.35rem;
+  font-weight: 560;
+}
+.taxi-alerts,
+.taxi-feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+.taxi-alerts p { margin: 0.28rem 0 0; font-weight: 650; }
+.taxi-alerts small,
+.taxi-feed small { color: var(--taxi-muted); font-size: 0.78rem; }
+.taxi-feed li { display: flex; justify-content: space-between; gap: 0.65rem; align-items: flex-start; }
+.taxi-feed strong,
+.taxi-feed small,
+.taxi-feed em { display: block; }
+.taxi-feed em { font-style: normal; text-align: right; font-size: 0.82rem; font-weight: 700; }
+
+.taxi-chart-svg { width: 100%; height: auto; display: block; }
+.taxi-chart-bar { fill: var(--taxi-gold-text); }
+.taxi-chart-label,
+.taxi-chart-value { fill: var(--taxi-muted); font-size: 11px; font-family: var(--taxi-font); }
+
+.taxi-class-bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.55rem; }
+.taxi-class-bars li {
+  display: grid;
+  grid-template-columns: 4.6rem minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.taxi-hbar { display: block; height: 8px; border-radius: 99px; background: var(--taxi-line); overflow: hidden; }
+.taxi-hbar i { display: block; height: 100%; border-radius: inherit; background: var(--taxi-gold-text); }
+
+.taxi-room-table-head { display: flex; flex-direction: column; gap: 0.35rem; }
+.taxi-room-table .taxi-filters { margin: 0; }
+.taxi-table-scroll { overflow-x: auto; }
+.taxi-room-table table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+.taxi-room-table th,
+.taxi-room-table td {
+  text-align: left;
+  padding: 0.45rem 0.35rem;
+  border-bottom: 1px solid var(--taxi-line);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--taxi-ink);
+  white-space: nowrap;
+}
+.taxi-room-table thead th {
+  color: var(--taxi-faint);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.taxi-room-table tbody th { display: flex; align-items: center; gap: 0.45rem; }
+.taxi-room-table .taxi-avatar { width: 32px; height: 32px; font-size: 0.68rem; }
+
+.taxi-map-legend {
+  position: absolute;
+  z-index: 500;
+  left: 10px;
+  bottom: 22px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.7rem;
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  list-style: none;
+  background: color-mix(in srgb, var(--taxi-card) 92%, transparent);
+  border: 1px solid var(--taxi-line);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.taxi-map-legend li { display: inline-flex; align-items: center; gap: 0.3rem; }
+.taxi-map-legend i { width: 9px; height: 9px; border-radius: 50%; display: block; }
+.taxi-map-legend .is-trip { background: #141414; box-shadow: 0 0 0 2px #c9a86a; }
+.taxi-app[data-theme="dark"] .taxi-map-legend .is-trip { background: #f6f3ec; }
+.taxi-map-legend .is-online { background: #7a6430; }
+.taxi-map-legend .is-idle { background: #5e5850; }
+.taxi-map-legend .is-request { background: #c9a86a; border-radius: 2px; }
+
+@media (min-width: 1100px) {
+  .taxi-room {
+    height: 100dvh;
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1.4fr) minmax(200px, 0.78fr);
+    gap: 0.7rem;
+    padding: calc(var(--taxi-header) + 0.7rem) 1rem 0.85rem;
+  }
+  .taxi-kpis { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .taxi-room-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1.65fr) minmax(280px, 0.78fr);
+    gap: 0.7rem;
+    min-height: 0;
+  }
+  .taxi-room-map,
+  .taxi-room-map-card { height: 100%; min-height: 0; }
+  .taxi-room-side {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 0.7rem;
+    min-height: 0;
+  }
+  .taxi-room-side .taxi-panel:last-child { min-height: 0; overflow: auto; }
+  .taxi-room-bottom {
+    display: grid;
+    grid-template-columns: minmax(200px, 0.85fr) minmax(200px, 0.85fr) minmax(0, 1.35fr);
+    gap: 0.7rem;
+    min-height: 0;
+  }
+  .taxi-room-table { min-height: 0; display: flex; flex-direction: column; }
+  .taxi-table-scroll { min-height: 0; overflow: auto; }
 }

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import TaxiChrome from "../../components/taxi/TaxiChrome";
 import useTaxiTheme from "../../taxi/useTaxiTheme";
 import { DISPATCH_TRIPS, DRIVERS, formatZar } from "../../taxi/mockData";
@@ -61,6 +62,7 @@ export default function DispatchApp() {
           <p className="taxi-kicker">Operations</p>
           <h1>Dispatch</h1>
           <p>Assign the nearest partner and keep Cape Town moving.</p>
+          <Link to="/control" className="taxi-inline-link">Open the control room</Link>
         </header>
 
         <aside className="taxi-dispatch-side" aria-label="Sample fleet">

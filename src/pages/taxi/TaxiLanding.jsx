@@ -43,6 +43,18 @@ const ROLES = [
       </svg>
     ),
   },
+  {
+    to: "/control",
+    kicker: "Operations",
+    title: "Control room",
+    text: "See the city, the fleet, and the sample day on one board.",
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="7" />
+        <path d="M12 5v2M12 17v2M5 12h2M17 12h2M12 12l3-2" />
+      </svg>
+    ),
+  },
 ];
 
 export default function TaxiLanding() {
