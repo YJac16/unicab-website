@@ -26,11 +26,12 @@ SPA routes (`/ride`, `/drive`, legacy `/tours/*`, etc.) are handled by the catch
 
 | Route | Role |
 |-------|------|
-| `/` | Landing — ride, drive, dispatch, or the control room. Light and dark themes |
-| `/ride` | Passenger flow for sample trip T-1048: request, partner on the way, arrived, live trip, arrival, rating and tip, receipt |
-| `/drive` | Same trip for the partner: online, request with fare and countdown, navigate, arrive, trip, sample earnings, today |
-| `/dispatch` | Sample operations board. Assignments stay in the browser |
-| `/control` | Control room for the same sample day: fleet map, KPIs, alerts, trip feed, partner table, charts |
+| `/` | Landing — ride, drive, dispatch, control room, or the pitch. Light and dark themes |
+| `/ride` | Passenger flow for sample trip T-1048. Confirming writes the shared sample story |
+| `/drive` | Same trip for the partner, after dispatch assigns it |
+| `/dispatch` | Sample board with nearest-partner ranking. Assignments stay in this browser |
+| `/control` | Control room for the same sample day, including the live T-1048 status |
+| `/pitch` | Why Unicab, an illustrative commission sketch, the safety story, and a roadmap |
 
 Every screen shows a small **Demo** badge. Trips, riders, and fares are sample data.
 

@@ -8,7 +8,7 @@
   --taxi-faint: #5e5850;
   --taxi-line: rgba(20, 20, 20, 0.1);
   --taxi-gold: #bfa25f;
-  --taxi-gold-text: #7a6430;
+  --taxi-gold-text: #5f4b22;
   --taxi-gold-bright: #c9a86a;
   --taxi-gold-soft: rgba(191, 162, 95, 0.16);
   --taxi-shadow: 0 18px 50px rgba(20, 20, 20, 0.12);
@@ -176,7 +176,7 @@ body[data-taxi="dark"] { background: #0c0c0c; }
   border: 1px solid var(--taxi-gold-text);
   color: var(--taxi-gold-text);
   background: var(--taxi-gold-soft);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -232,7 +232,7 @@ body[data-taxi="dark"] { background: #0c0c0c; }
 .taxi-kicker {
   margin: 0 0 0.7rem;
   color: var(--taxi-gold-text);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.2em;
   text-transform: uppercase;
@@ -395,14 +395,14 @@ body[data-taxi="dark"] { background: #0c0c0c; }
 
 /* OSM standard tiles are keyless. Filters restyle them; markers stay unfiltered. */
 .taxi-map .leaflet-tile-pane {
-  filter: grayscale(0.45) saturate(0.4) brightness(1.06) contrast(0.94);
+  filter: grayscale(0.55) saturate(0.35) brightness(1.05) contrast(0.9);
 }
 .taxi-app[data-theme="dark"] .taxi-map .leaflet-tile-pane {
-  filter: invert(1) hue-rotate(180deg) grayscale(0.45) brightness(0.9) contrast(0.92);
+  filter: invert(1) hue-rotate(180deg) grayscale(0.92) brightness(0.68) contrast(0.76) saturate(0.12);
 }
 
 .leaflet-control-attribution {
-  font-size: 10px !important;
+  font-size: 12px !important;
   background: color-mix(in srgb, var(--taxi-card) 88%, transparent) !important;
   color: var(--taxi-muted) !important;
 }
@@ -480,7 +480,7 @@ body[data-taxi="dark"] { background: #0c0c0c; }
 .taxi-assign label,
 .taxi-quick-label {
   display: block;
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -611,7 +611,7 @@ body[data-taxi="dark"] { background: #0c0c0c; }
   color: #141414;
 }
 
-.taxi-cta:disabled { opacity: 0.38; cursor: not-allowed; }
+.taxi-cta:disabled { opacity: 1; background: #5e5850; color: #f6f3ec; cursor: not-allowed; }
 .taxi-cta:not(:disabled):hover { transform: translateY(-1px); }
 
 .taxi-cta-secondary {
@@ -666,7 +666,7 @@ body[data-taxi="dark"] { background: #0c0c0c; }
 
 .taxi-stops li { display: flex; flex-direction: column; }
 .taxi-stop-label {
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--taxi-faint);
@@ -698,7 +698,7 @@ body[data-taxi="dark"] { background: #0c0c0c; }
 }
 
 .taxi-pay legend {
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--taxi-faint);
@@ -833,7 +833,7 @@ body[data-taxi="dark"] { background: #0c0c0c; }
 
 .taxi-demo-tag {
   margin-left: 0.35rem;
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--taxi-gold-text);
@@ -879,16 +879,21 @@ body[data-taxi="dark"] { background: #0c0c0c; }
 }
 
 .taxi-stars { display: flex; gap: 0.35rem; margin: 0.4rem 0 0.8rem; }
-.taxi-stars button {
+.taxi-stars button,
+.taxi-stars span {
   border: 0;
   background: transparent;
-  color: color-mix(in srgb, var(--taxi-ink) 25%, transparent);
+  color: #5e5850;
   font-size: 1.8rem;
   line-height: 1;
   cursor: pointer;
   padding: 0.1rem;
 }
-.taxi-stars button.is-on { color: var(--taxi-gold-text); }
+.taxi-app[data-theme="dark"] .taxi-stars button,
+.taxi-app[data-theme="dark"] .taxi-stars span { color: #c8c2b4; }
+.taxi-stars button.is-on,
+.taxi-stars span.is-on { color: var(--taxi-gold-text); }
+.taxi-stars span { cursor: default; }
 
 .taxi-note {
   min-height: 72px;
@@ -944,7 +949,7 @@ body[data-taxi="dark"] { background: #0c0c0c; }
   border-radius: 14px;
   padding: 0.7rem;
 }
-.taxi-metrics dt { color: var(--taxi-faint); font-size: 0.72rem; }
+.taxi-metrics dt { color: var(--taxi-faint); font-size: 0.75rem; }
 .taxi-metrics dd {
   margin: 0.25rem 0 0;
   font-family: var(--taxi-display);
@@ -995,7 +1000,7 @@ body[data-taxi="dark"] { background: #0c0c0c; }
 .taxi-trip-top, .taxi-trip-fare { display: flex; justify-content: space-between; gap: 0.5rem; align-items: center; }
 .taxi-trip-id { color: var(--taxi-faint); font-size: 0.8rem; letter-spacing: 0.06em; }
 .taxi-status {
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1046,7 +1051,7 @@ body[data-taxi="dark"] { background: #0c0c0c; }
   background: #141414;
   color: #f6f3ec;
   font-family: var(--taxi-font);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
@@ -1314,10 +1319,17 @@ body[data-taxi="dark"] { background: #0c0c0c; }
   .taxi-landing { padding-left: 1.5rem; padding-right: 1.5rem; }
 }
 
+@media (max-width: 899px) {
+  .taxi-phone { display: none; }
+  .taxi-hero { display: block; }
+  .taxi-lede { text-wrap: balance; max-width: 22rem; }
+}
+
 @media (min-width: 900px) {
-  .taxi-hero { grid-template-columns: minmax(0, 1.15fr) 280px; }
-  .taxi-phone { width: 260px; margin: 0; }
-  .taxi-phone-screen { height: 460px; }
+  .taxi-hero { grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); align-items: center; }
+  .taxi-phone { width: 320px; margin: 0; }
+  .taxi-phone-screen { height: 600px; }
+  .taxi-lede { text-wrap: balance; max-width: 28rem; }
   .taxi-roles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .taxi-dispatch { grid-template-columns: 300px 1fr; align-items: start; }
   .taxi-dispatch-intro { grid-column: 1 / -1; }
@@ -1369,7 +1381,7 @@ body[data-taxi="dark"] { background: #0c0c0c; }
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   background: #141414;
   color: #f6f3ec;
@@ -1418,7 +1430,7 @@ body[data-taxi="dark"] { background: #0c0c0c; }
 .taxi-kpis p {
   margin: 0;
   color: var(--taxi-faint);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1466,7 +1478,7 @@ body[data-taxi="dark"] { background: #0c0c0c; }
 .taxi-chart-svg { width: 100%; height: auto; display: block; }
 .taxi-chart-bar { fill: var(--taxi-gold-text); }
 .taxi-chart-label,
-.taxi-chart-value { fill: var(--taxi-muted); font-size: 11px; font-family: var(--taxi-font); }
+.taxi-chart-value { fill: var(--taxi-muted); font-size: 12px; font-family: var(--taxi-font); }
 
 .taxi-class-bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.55rem; }
 .taxi-class-bars li {
@@ -1497,18 +1509,18 @@ body[data-taxi="dark"] { background: #0c0c0c; }
 }
 .taxi-room-table thead th {
   color: var(--taxi-faint);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .taxi-room-table tbody th { display: flex; align-items: center; gap: 0.45rem; }
-.taxi-room-table .taxi-avatar { width: 32px; height: 32px; font-size: 0.68rem; }
+.taxi-room-table .taxi-avatar { width: 32px; height: 32px; font-size: 0.75rem; }
 
 .taxi-map-legend {
   position: absolute;
   z-index: 500;
   left: 10px;
-  bottom: 22px;
+  top: 10px;
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem 0.7rem;
@@ -1518,7 +1530,7 @@ body[data-taxi="dark"] { background: #0c0c0c; }
   background: color-mix(in srgb, var(--taxi-card) 92%, transparent);
   border: 1px solid var(--taxi-line);
   border-radius: 999px;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 .taxi-map-legend li { display: inline-flex; align-items: center; gap: 0.3rem; }
@@ -1533,33 +1545,178 @@ body[data-taxi="dark"] { background: #0c0c0c; }
   .taxi-room {
     height: 100dvh;
     overflow: hidden;
+    box-sizing: border-box;
     display: grid;
-    grid-template-rows: auto auto minmax(0, 1.4fr) minmax(200px, 0.78fr);
+    grid-template-columns: minmax(0, 1.65fr) minmax(300px, 0.78fr);
+    grid-template-rows: auto auto minmax(0, 1.25fr) minmax(210px, 0.72fr);
+    grid-template-areas:
+      "head head"
+      "kpis kpis"
+      "map side"
+      "bottom bottom";
     gap: 0.7rem;
-    padding: calc(var(--taxi-header) + 0.7rem) 1rem 0.85rem;
+    padding: calc(var(--taxi-header) + 0.7rem) 1rem 4.2rem;
   }
-  .taxi-kpis { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .taxi-room-head { grid-area: head; }
+  .taxi-kpis { grid-area: kpis; grid-template-columns: repeat(6, minmax(0, 1fr)); }
   .taxi-room-main {
+    grid-area: map;
     display: grid;
-    grid-template-columns: minmax(0, 1.65fr) minmax(280px, 0.78fr);
+    grid-template-columns: minmax(0, 1.65fr) minmax(300px, 0.78fr);
+    grid-column: 1 / -1;
     gap: 0.7rem;
     min-height: 0;
   }
-  .taxi-room-map,
   .taxi-room-map-card { height: 100%; min-height: 0; }
-  .taxi-room-side {
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
-    gap: 0.7rem;
+  .taxi-room-map { height: 100%; min-height: 0; }
+  .taxi-room-side { display: flex; flex-direction: column; gap: 0.7rem; min-height: 0; }
+  .taxi-room-alerts { flex: none; }
+  .taxi-room-feed { flex: 1; min-height: 0; overflow: auto; }
+  .taxi-room-bottom { grid-area: bottom; min-height: 0; }
+  .taxi-fold { height: 100%; min-height: 0; }
+  .taxi-fold > summary { display: none; }
+  .taxi-fold-body {
+    height: 100%;
     min-height: 0;
-  }
-  .taxi-room-side .taxi-panel:last-child { min-height: 0; overflow: auto; }
-  .taxi-room-bottom {
     display: grid;
-    grid-template-columns: minmax(200px, 0.85fr) minmax(200px, 0.85fr) minmax(0, 1.35fr);
+    grid-template-columns: minmax(180px, 0.85fr) minmax(180px, 0.85fr) minmax(0, 1.35fr);
     gap: 0.7rem;
-    min-height: 0;
   }
-  .taxi-room-table { min-height: 0; display: flex; flex-direction: column; }
+  .taxi-room-table { min-height: 0; display: flex; flex-direction: column; overflow: auto; }
   .taxi-table-scroll { min-height: 0; overflow: auto; }
+  .taxi-partner-cards { display: none; }
+}
+
+.taxi-bottom-sheet { padding-bottom: calc(4.4rem + env(safe-area-inset-bottom, 0)); }
+.taxi-landing, .taxi-dispatch, .taxi-pitch, .taxi-room { padding-bottom: 4.6rem; }
+
+.taxi-presenter {
+  position: fixed;
+  z-index: 1600;
+  left: 10px;
+  right: 10px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.4rem 0.45rem 0.4rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--taxi-line);
+  background: color-mix(in srgb, var(--taxi-card) 94%, transparent);
+  box-shadow: var(--taxi-shadow);
+}
+.taxi-presenter p { margin: 0; font-size: 0.75rem; font-weight: 700; }
+.taxi-presenter div { display: flex; gap: 0.35rem; }
+.taxi-presenter button {
+  border: 1px solid var(--taxi-ink);
+  background: var(--taxi-ink);
+  color: var(--taxi-bg);
+  border-radius: 999px;
+  padding: 0.4rem 0.7rem;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.taxi-presenter button + button { background: transparent; color: var(--taxi-ink); }
+
+.taxi-decline {
+  display: block;
+  width: 100%;
+  margin-top: 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--taxi-ink);
+  background: transparent;
+  color: var(--taxi-ink);
+  padding: 0.85rem 1rem;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.taxi-decline-inline { width: auto; margin-top: 0; padding: 0.7rem 0.9rem; }
+.taxi-alert-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.45rem; }
+
+.taxi-swipe { display: block; margin-top: 0.8rem; }
+.taxi-swipe span { display: block; margin-bottom: 0.35rem; font-size: 0.75rem; font-weight: 700; }
+.taxi-swipe input[type="range"] {
+  width: 100%;
+  accent-color: #5f4b22;
+  height: 2.2rem;
+  cursor: pointer;
+}
+
+.taxi-dispatch-map { position: relative; height: 280px; border-radius: 16px; overflow: hidden; border: 1px solid var(--taxi-line); margin-bottom: 0.75rem; }
+.taxi-dispatch-map .taxi-map-wrap,
+.taxi-dispatch-map .taxi-map { height: 100%; }
+.taxi-rank { list-style: none; margin: 0.6rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.taxi-rank li { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.75rem; }
+.taxi-rank small { color: var(--taxi-muted); }
+
+.taxi-route-edit { margin: 0.6rem 0 0.8rem; }
+
+.taxi-partner-cards { list-style: none; margin: 0.6rem 0 0; padding: 0; display: none; flex-direction: column; gap: 0.5rem; }
+.taxi-partner-cards li {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--taxi-line);
+}
+.taxi-partner-cards strong,
+.taxi-partner-cards small { display: block; }
+.taxi-partner-cards small { color: var(--taxi-muted); font-size: 0.75rem; }
+.taxi-partner-cards .taxi-status { margin: 0.2rem 0; }
+
+.taxi-fold > summary {
+  cursor: pointer;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+.taxi-fold-body { display: flex; flex-direction: column; gap: 0.75rem; }
+
+.taxi-pitch { padding: calc(var(--taxi-header) + 1.2rem) 1rem 5rem; max-width: 980px; margin: 0 auto; }
+.taxi-pitch-hero h1 { margin: 0.2rem 0 0.6rem; font-family: var(--taxi-display); font-size: clamp(2.2rem, 6vw, 3.6rem); font-weight: 560; letter-spacing: -0.03em; }
+.taxi-pitch-hero p, .taxi-pitch-panel p, .taxi-pitch-grid p { font-size: 1rem; line-height: 1.5; }
+.taxi-pitch-grid { display: grid; gap: 0.75rem; margin: 1.2rem 0; }
+.taxi-pitch-grid article, .taxi-pitch-panel {
+  background: var(--taxi-card);
+  border: 1px solid var(--taxi-line);
+  border-radius: 16px;
+  padding: 1rem;
+}
+.taxi-pitch-panel { margin-top: 0.75rem; }
+.taxi-pitch-panel h2, .taxi-pitch-grid h2 { margin: 0 0 0.45rem; font-family: var(--taxi-display); font-weight: 560; }
+.taxi-pitch-list { margin: 0.4rem 0 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 0.45rem; }
+.taxi-pitch .taxi-cta-inline { display: inline-block; width: auto; margin-top: 0.9rem; text-decoration: none; }
+
+.taxi-landing-note a { color: var(--taxi-gold-text); font-weight: 700; }
+
+@media (min-width: 800px) {
+  .taxi-pitch-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 1099px) {
+  .taxi-room { height: auto; overflow: visible; display: flex; flex-direction: column; }
+  .taxi-room-head { order: 0; }
+  .taxi-kpis { order: 2; }
+  .taxi-room-main { display: contents; }
+  .taxi-room-side { display: contents; }
+  .taxi-room-alerts { order: 1; }
+  .taxi-room-map-card { order: 3; }
+  .taxi-room-feed { order: 4; }
+  .taxi-room-bottom { order: 5; }
+  .taxi-room-map { height: 420px; }
+}
+
+@media (max-width: 639px) {
+  .taxi-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; }
+  .taxi-kpis article { padding: 0.45rem 0.4rem; }
+  .taxi-kpis strong { font-size: 1.2rem; }
+  .taxi-kpis span { display: none; }
+  .taxi-feed li { flex-direction: column; align-items: stretch; }
+  .taxi-feed em { text-align: left; }
+  .taxi-table-scroll { display: none; }
+  .taxi-partner-cards { display: flex; }
+  .taxi-presenter p { font-size: 0.75rem; }
 }

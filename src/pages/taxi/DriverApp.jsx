@@ -1,11 +1,22 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import TaxiChrome from "../../components/taxi/TaxiChrome";
 import BottomSheet from "../../components/taxi/BottomSheet";
 import TaxiMap from "../../components/taxi/TaxiMap";
+import SwipeConfirm from "../../components/taxi/SwipeConfirm";
 import useTaxiTheme from "../../taxi/useTaxiTheme";
 import {
+  acceptSampleJob,
+  completeSampleTrip,
+  declineSampleJob,
+  markArrived,
+  startSampleTrip,
+  useDemoSession,
+} from "../../taxi/demoSession";
+import {
   CANNED_DRIVER_JOB,
+  CONTROL_CLOCK,
   DRIVER_START,
+  SAMPLE_PARTNER,
   TODAY_TRIPS,
   VEHICLES,
   bearingDeg,
@@ -13,6 +24,7 @@ import {
   fareBreakdown,
   formatKm,
   formatZar,
+  getLocationById,
   pointAlong,
   roadRoute,
   routeLengthKm,
@@ -20,9 +32,19 @@ import {
 
 const ACCEPT_SECONDS = 15;
 
+const SAMPLE_SHIFT_HOURS = (12 + 20 / 60) - (7 + 40 / 60);
+
 export default function DriverApp() {
   const { theme, toggleTheme } = useTaxiTheme();
-  const job = CANNED_DRIVER_JOB;
+  const session = useDemoSession();
+  const pickupPlace = getLocationById(session.pickupId) || CANNED_DRIVER_JOB.pickup;
+  const dropoffPlace = getLocationById(session.dropoffId) || CANNED_DRIVER_JOB.dropoff;
+  const job = {
+    ...CANNED_DRIVER_JOB,
+    pickup: pickupPlace,
+    dropoff: dropoffPlace,
+    partner: session.driverId && session.driverId !== "thabo" ? CANNED_DRIVER_JOB.partner : SAMPLE_PARTNER,
+  };
   const pickupRoute = useMemo(() => roadRoute(DRIVER_START, job.pickup), [job.pickup]);
   const tripRoute = useMemo(() => roadRoute(job.pickup, job.dropoff), [job.pickup, job.dropoff]);
   const pickupKm = routeLengthKm(pickupRoute) || 1.4;
@@ -32,19 +54,25 @@ export default function DriverApp() {
 
   const startPin = pickupRoute[0] || DRIVER_START;
   const [online, setOnline] = useState(false);
-  const [stage, setStage] = useState("idle");
+  const [showToday, setShowToday] = useState(false);
+  const liveStage = {
+    assigned: "incoming",
+    accepted: "to-pickup",
+    arrived: "arrived",
+    started: "in-trip",
+    complete: "complete",
+    rated: "complete",
+  }[session.phase];
+  const stage = showToday ? "today" : liveStage || (online ? "idle" : "offline");
   const [driverPos, setDriverPos] = useState(startPin);
   const [bearing, setBearing] = useState(0);
   const [progress, setProgress] = useState(0);
   const [seconds, setSeconds] = useState(ACCEPT_SECONDS);
   const [earned, setEarned] = useState(null);
-  const backRef = useRef("idle");
 
   useEffect(() => {
-    if (!online || stage !== "idle") return undefined;
-    const timer = setTimeout(() => setStage("incoming"), 1200);
-    return () => clearTimeout(timer);
-  }, [online, stage]);
+    if (liveStage) setOnline(true);
+  }, [liveStage]);
 
   useEffect(() => {
     if (stage !== "incoming") return undefined;
@@ -53,7 +81,7 @@ export default function DriverApp() {
       setSeconds((value) => {
         if (value <= 1) {
           clearInterval(tick);
-          setStage("idle");
+          declineSampleJob();
           return 0;
         }
         return value - 1;
@@ -63,81 +91,49 @@ export default function DriverApp() {
   }, [stage]);
 
   useEffect(() => {
-    if (stage !== "to-pickup") return undefined;
-    const path = pickupRoute;
+    const path = stage === "to-pickup" || stage === "arrived" ? pickupRoute : stage === "in-trip" || stage === "complete" ? tripRoute : null;
+    if (!path || path.length < 2 || stage === "arrived" || stage === "complete") {
+      if (stage === "arrived") setDriverPos(job.pickup);
+      if (stage === "complete") setDriverPos(job.dropoff);
+      return undefined;
+    }
     let step = 0;
     const steps = 18;
     const anim = setInterval(() => {
       step += 1;
-      const t = Math.min(step / steps, 1);
+      const cap = stage === "to-pickup" ? 0.9 : 0.94;
+      const t = Math.min(step / steps, cap);
       const pos = pointAlong(path, t);
       const ahead = pointAlong(path, Math.min(1, t + 0.04));
       if (pos) setDriverPos(pos);
       if (pos && ahead) setBearing(bearingDeg(pos, ahead));
       setProgress(t);
-      if (t >= 1) {
-        clearInterval(anim);
-        setStage("arrived");
-      }
     }, 420);
     return () => clearInterval(anim);
-  }, [stage, pickupRoute]);
-
-  useEffect(() => {
-    if (stage !== "in-trip") return undefined;
-    const path = tripRoute;
-    let step = 0;
-    const steps = 20;
-    const anim = setInterval(() => {
-      step += 1;
-      const t = Math.min(step / steps, 1);
-      const pos = pointAlong(path, t);
-      const ahead = pointAlong(path, Math.min(1, t + 0.04));
-      if (pos) setDriverPos(pos);
-      if (pos && ahead) setBearing(bearingDeg(pos, ahead));
-      setProgress(t);
-      if (t >= 1) {
-        clearInterval(anim);
-        setStage("dropoff");
-      }
-    }, 420);
-    return () => clearInterval(anim);
-  }, [stage, tripRoute]);
+  }, [stage, pickupRoute, tripRoute, job.pickup, job.dropoff]);
 
   function goOffline() {
     setOnline(false);
-    setStage("idle");
+    setShowToday(false);
     setProgress(0);
     setDriverPos(startPin);
   }
 
   function goOnline() {
     setOnline(true);
-    setStage("idle");
+    setShowToday(false);
     setProgress(0);
     setDriverPos(startPin);
     const ahead = pointAlong(pickupRoute, 0.08);
     if (ahead) setBearing(bearingDeg(startPin, ahead));
   }
 
-  function acceptJob() {
-    setProgress(0);
-    setDriverPos(startPin);
-    setStage("to-pickup");
-  }
-
-  function declineJob() {
-    setStage("idle");
-  }
-
   function openToday() {
-    backRef.current = stage;
-    setStage("today");
+    setShowToday(true);
   }
 
   function closeToday() {
-    const back = backRef.current;
-    setStage(back && back !== "today" ? back : "idle");
+    setShowToday(false);
   }
 
   const dayTrips = useMemo(() => {
@@ -156,6 +152,7 @@ export default function DriverApp() {
   }, [earned, job, tripKm]);
 
   const dayEarn = dayTrips.reduce((sum, trip) => sum + trip.earn, 0);
+  const perHour = Math.round(dayEarn / SAMPLE_SHIFT_HOURS);
   const dayKm = dayTrips.reduce((sum, trip) => sum + trip.km, 0);
 
   const mapRoute =
@@ -230,8 +227,8 @@ export default function DriverApp() {
               <dd>{formatKm(dayKm)}</dd>
             </div>
             <div>
-              <dt>Online</dt>
-              <dd>{online ? "Yes" : "No"}</dd>
+              <dt>Earnings / hr</dt>
+              <dd>{formatZar(perHour)}</dd>
             </div>
           </dl>
           <ul className="taxi-day-list">
@@ -245,13 +242,14 @@ export default function DriverApp() {
               </li>
             ))}
           </ul>
+          <p className="taxi-fine">Sample day through {CONTROL_CLOCK}. Illustrative hourly figure.</p>
           <button type="button" className="taxi-cta" onClick={closeToday}>
             Back to the map
           </button>
         </section>
       ) : (
         <BottomSheet labelledBy="drive-sheet-title">
-          {!online && (
+          {stage === "offline" && (
             <>
               <h2 id="drive-sheet-title" className="taxi-sheet-title">You&apos;re offline</h2>
               <p className="taxi-sheet-sub">Go online to receive requests in the City Bowl.</p>
@@ -265,15 +263,19 @@ export default function DriverApp() {
             </>
           )}
 
-          {online && stage === "idle" && (
+          {stage === "idle" && (
             <>
               <h2 id="drive-sheet-title" className="taxi-sheet-title">Looking nearby</h2>
-              <p className="taxi-sheet-sub">A request will arrive in a moment.</p>
+              <p className="taxi-sheet-sub">
+                {session.phase === "requested"
+                  ? "T-1048 is on dispatch and still unassigned."
+                  : "A request appears here after dispatch assigns you."}
+              </p>
               <div className="taxi-skeleton" aria-hidden="true"><span /><span /></div>
             </>
           )}
 
-          {online && stage === "incoming" && (
+          {stage === "incoming" && (
             <>
               <div className="taxi-request-head">
                 <h2 id="drive-sheet-title" className="taxi-sheet-title">New request</h2>
@@ -310,12 +312,12 @@ export default function DriverApp() {
                 <span>Sample fare</span>
                 <strong>{formatZar(fare.total)}</strong>
               </div>
-              <button type="button" className="taxi-cta" onClick={acceptJob}>Accept</button>
-              <button type="button" className="taxi-cta-secondary" onClick={declineJob}>Decline</button>
+              <button type="button" className="taxi-cta" onClick={() => { setProgress(0); acceptSampleJob(); }}>Accept</button>
+              <button type="button" className="taxi-decline" onClick={declineSampleJob}>Decline</button>
             </>
           )}
 
-          {online && stage === "to-pickup" && (
+          {stage === "to-pickup" && (
             <>
               <h2 id="drive-sheet-title" className="taxi-sheet-title">Heading to pickup</h2>
               <p className="taxi-sheet-sub">{job.pickup.name} · {job.pickup.subtitle}</p>
@@ -323,22 +325,21 @@ export default function DriverApp() {
               <div className="taxi-progress" aria-hidden="true">
                 <span style={{ width: `${Math.round(progress * 100)}%` }} />
               </div>
+              <SwipeConfirm label="Slide to confirm arrived" onConfirm={() => { setProgress(0); markArrived(); }} />
             </>
           )}
 
-          {online && stage === "arrived" && (
+          {stage === "arrived" && (
             <>
               <h2 id="drive-sheet-title" className="taxi-sheet-title">You&apos;ve arrived</h2>
               <p className="taxi-sheet-sub">{job.riderName} is at {job.pickup.name}.</p>
               <p className="taxi-person-meta">{job.partner.colour} {job.partner.vehicle}</p>
               <p className="taxi-plate">{job.partner.plate}</p>
-              <button type="button" className="taxi-cta" onClick={() => { setProgress(0); setStage("in-trip"); }}>
-                Start trip
-              </button>
+              <SwipeConfirm label="Slide to start trip" onConfirm={() => { setProgress(0); startSampleTrip(); }} />
             </>
           )}
 
-          {online && stage === "in-trip" && (
+          {stage === "in-trip" && (
             <>
               <h2 id="drive-sheet-title" className="taxi-sheet-title">On trip</h2>
               <p className="taxi-sheet-sub">
@@ -347,27 +348,11 @@ export default function DriverApp() {
               <div className="taxi-progress" aria-hidden="true">
                 <span style={{ width: `${Math.round(progress * 100)}%` }} />
               </div>
+              <SwipeConfirm label="Slide to complete trip" onConfirm={() => { setEarned(fare.total); completeSampleTrip(); }} />
             </>
           )}
 
-          {online && stage === "dropoff" && (
-            <>
-              <h2 id="drive-sheet-title" className="taxi-sheet-title">At the drop-off</h2>
-              <p className="taxi-sheet-sub">{job.dropoff.name} · {job.dropoff.subtitle}</p>
-              <button
-                type="button"
-                className="taxi-cta"
-                onClick={() => {
-                  setEarned(fare.total);
-                  setStage("complete");
-                }}
-              >
-                Complete trip
-              </button>
-            </>
-          )}
-
-          {online && stage === "complete" && (
+          {stage === "complete" && (
             <>
               <h2 id="drive-sheet-title" className="taxi-sheet-title">Trip complete</h2>
               <p className="taxi-kicker">Sample earnings</p>
@@ -381,12 +366,11 @@ export default function DriverApp() {
                 type="button"
                 className="taxi-cta-secondary"
                 onClick={() => {
-                  setStage("idle");
                   setProgress(0);
                   setDriverPos(job.dropoff);
                 }}
               >
-                Stay online
+                Stay on this sample
               </button>
             </>
           )}

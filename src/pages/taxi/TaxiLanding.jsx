@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import Logo from "../../components/taxi/Logo";
 import DemoBadge from "../../components/taxi/DemoBadge";
 import ThemeToggle from "../../components/taxi/ThemeToggle";
+import DemoPresenter from "../../components/taxi/DemoPresenter";
 import useTaxiTheme from "../../taxi/useTaxiTheme";
 import { SAMPLE_GO_FARE, formatZar } from "../../taxi/mockData";
 
@@ -78,19 +79,19 @@ export default function TaxiLanding() {
           <div className="taxi-hero-copy">
             <p className="taxi-kicker">Taxi · Cape Town</p>
             <h1>A quieter way across the city.</h1>
-            <p className="taxi-lede">Book in seconds. Track your partner. Pay your way.</p>
-            <ul className="taxi-stats" aria-label="City figures">
+            <p className="taxi-lede">Book in seconds. Track your partner. Pay&nbsp;your&nbsp;way.</p>
+            <ul className="taxi-stats" aria-label="What this demo shows">
               <li>
                 <strong>4 min</strong>
-                <span>typical arrival</span>
+                <span>sample arrival</span>
               </li>
               <li>
                 <strong>3</strong>
                 <span>vehicle classes</span>
               </li>
               <li>
-                <strong>1 city</strong>
-                <span>Cape Town</span>
+                <strong>One trip</strong>
+                <span>shared on every screen</span>
               </li>
             </ul>
           </div>
@@ -125,8 +126,11 @@ export default function TaxiLanding() {
           ))}
         </section>
 
-        <p className="taxi-landing-note">Demo with sample data</p>
+        <p className="taxi-landing-note">
+          Demo with sample data. <Link to="/pitch">Read the pitch</Link>
+        </p>
       </main>
+      <DemoPresenter />
     </div>
   );
 }

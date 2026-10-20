@@ -24,7 +24,7 @@ export default function useTaxiTheme() {
     }
     document.body.dataset.taxi = theme;
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", theme === "dark" ? "#0C0C0C" : "#F3EFE6");
+    if (meta) meta.setAttribute("content", theme === "dark" ? "#0B0B0B" : "#F3EFE6");
     return () => {
       delete document.body.dataset.taxi;
     };

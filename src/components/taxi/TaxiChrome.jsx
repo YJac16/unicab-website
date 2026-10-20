@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import Logo from "./Logo";
 import DemoBadge from "./DemoBadge";
 import ThemeToggle from "./ThemeToggle";
+import DemoPresenter from "./DemoPresenter";
 
 export default function TaxiChrome({
   theme,
@@ -31,6 +32,7 @@ export default function TaxiChrome({
         </div>
       </header>
       <div id="taxi-main">{children}</div>
+      <DemoPresenter />
     </div>
   );
 }

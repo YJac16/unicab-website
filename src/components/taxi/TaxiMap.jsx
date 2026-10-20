@@ -29,7 +29,7 @@ function pinIcon(label, kind) {
 function carIcon(bearing) {
   return L.divIcon({
     className: "taxi-marker",
-    html: `<div class="taxi-marker-car" style="transform:rotate(${bearing}deg)"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="9" y="5" width="14" height="22" rx="5" fill="#141414" stroke="#C9A86A" stroke-width="1.6"/><rect x="12" y="8.5" width="8" height="6" rx="1.4" fill="#C9A86A"/><rect x="12" y="18" width="8" height="3.2" rx="1" fill="#F6F3EC"/></svg></div>`,
+    html: `<div class="taxi-marker-car" style="transform:rotate(${bearing}deg)"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="9" y="5" width="14" height="22" rx="5" fill="#C9A86A" stroke="#141414" stroke-width="1.6"/><rect x="12" y="8.5" width="8" height="6" rx="1.4" fill="#141414"/><rect x="12" y="18" width="8" height="3.2" rx="1" fill="#F6F3EC"/></svg></div>`,
     iconSize: [40, 40],
     iconAnchor: [20, 20],
   });
