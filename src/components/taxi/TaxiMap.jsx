@@ -4,13 +4,10 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { CAPE_TOWN_CENTER } from "../../taxi/mockData";
 
-const CARTO_ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const OSM_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
-const TILES = {
-  light: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-  dark: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-};
+const OSM_TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (ch) => (
@@ -109,10 +106,9 @@ export default function TaxiMap({
         aria-label="Map of Cape Town"
       >
         <TileLayer
-          key={theme}
-          attribution={CARTO_ATTRIBUTION}
-          url={TILES[theme] || TILES.light}
-          subdomains="abcd"
+          attribution={OSM_ATTRIBUTION}
+          url={OSM_TILES}
+          maxZoom={19}
         />
         <MapResizeFix />
         {fitRoute && route.length > 0 && <FitBounds points={route} />}

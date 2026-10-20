@@ -54,7 +54,7 @@ export const DRIVERS = [
     classId: "go",
     rating: 4.92,
     trips: 1840,
-    photo: "/Thabo.png",
+    initials: "TM",
     lat: -33.918,
     lng: 18.415,
   },
@@ -67,7 +67,7 @@ export const DRIVERS = [
     classId: "comfort",
     rating: 4.88,
     trips: 960,
-    photo: "/Zinhle.jpg",
+    initials: "ZN",
     lat: -33.912,
     lng: 18.428,
   },
@@ -80,7 +80,7 @@ export const DRIVERS = [
     classId: "xl",
     rating: 4.85,
     trips: 640,
-    photo: "/Andre.jpg",
+    initials: "AP",
     lat: -33.931,
     lng: 18.41,
   },
@@ -93,7 +93,7 @@ export const DRIVERS = [
     classId: "go",
     rating: 4.95,
     trips: 1210,
-    photo: "/Leah.png",
+    initials: "LS",
     lat: -33.909,
     lng: 18.442,
   },
@@ -290,3 +290,11 @@ export function routeLengthKm(points) {
   for (let i = 1; i < (points?.length || 0); i += 1) km += distanceKm(points[i - 1], points[i]);
   return km;
 }
+
+/** Same UNICAB Go fare the passenger and partner show for trip T-1048. */
+export const SAMPLE_GO_FARE = fareBreakdown(
+  routeLengthKm(roadRoute(LOCATIONS[0], LOCATIONS[1])),
+  VEHICLES[0]
+);
+const sampleTrip = DISPATCH_TRIPS.find((trip) => trip.id === SAMPLE_TRIP_ID);
+if (sampleTrip) sampleTrip.estimate = SAMPLE_GO_FARE.total;

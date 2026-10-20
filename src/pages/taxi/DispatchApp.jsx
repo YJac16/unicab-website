@@ -81,7 +81,7 @@ export default function DispatchApp() {
           <ul className="taxi-fleet">
             {DRIVERS.map((driver) => (
               <li key={driver.id}>
-                <img src={driver.photo} alt="" />
+                <span className="taxi-avatar" aria-hidden="true">{driver.initials}</span>
                 <span>
                   <strong>{driver.name}</strong>
                   <small>

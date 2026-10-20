@@ -392,6 +392,14 @@ body[data-taxi="dark"] { background: #0c0c0c; }
 .taxi-map { width: 100%; height: 100%; background: #e6e2d8; }
 .taxi-app[data-theme="dark"] .taxi-map { background: #141414; }
 
+/* OSM standard tiles are keyless. Filters restyle them; markers stay unfiltered. */
+.taxi-map .leaflet-tile-pane {
+  filter: grayscale(0.45) saturate(0.4) brightness(1.06) contrast(0.94);
+}
+.taxi-app[data-theme="dark"] .taxi-map .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) grayscale(0.45) brightness(0.9) contrast(0.92);
+}
+
 .leaflet-control-attribution {
   font-size: 10px !important;
   background: color-mix(in srgb, var(--taxi-card) 88%, transparent) !important;
@@ -953,7 +961,8 @@ body[data-taxi="dark"] { background: #0c0c0c; }
   background: var(--taxi-card);
   border: 1px solid var(--taxi-line);
 }
-.taxi-fleet img { width: 40px; height: 40px; }
+.taxi-fleet img,
+.taxi-fleet .taxi-avatar { width: 40px; height: 40px; font-size: 0.75rem; }
 .taxi-fleet strong, .taxi-fleet small, .taxi-fleet em { display: block; }
 .taxi-fleet small, .taxi-fleet em { color: var(--taxi-muted); font-style: normal; font-size: 0.75rem; }
 
@@ -1098,11 +1107,7 @@ body[data-taxi="dark"] { background: #0c0c0c; }
 .taxi-phone-map {
   position: absolute;
   inset: 0 0 42% 0;
-  background:
-    linear-gradient(160deg, rgba(122, 100, 48, 0.18), transparent 42%),
-    repeating-linear-gradient(90deg, transparent 0 18px, rgba(20, 20, 20, 0.06) 18px 19px),
-    repeating-linear-gradient(0deg, transparent 0 22px, rgba(20, 20, 20, 0.05) 22px 23px),
-    #e7e2d6;
+  background: #e4e0d4 url("/sample-route.jpg") center / cover no-repeat;
 }
 
 .taxi-phone-sheet {
@@ -1162,11 +1167,7 @@ body[data-taxi="dark"] { background: #0c0c0c; }
 
 .taxi-app[data-theme="dark"] .taxi-phone-screen { background: #1c1c1c; }
 .taxi-app[data-theme="dark"] .taxi-phone-map {
-  background:
-    linear-gradient(160deg, rgba(201, 168, 106, 0.16), transparent 46%),
-    repeating-linear-gradient(90deg, transparent 0 18px, rgba(246, 243, 236, 0.05) 18px 19px),
-    repeating-linear-gradient(0deg, transparent 0 22px, rgba(246, 243, 236, 0.04) 22px 23px),
-    #1a1a1a;
+  filter: invert(1) hue-rotate(180deg) grayscale(0.4) brightness(0.88) contrast(0.92);
 }
 .taxi-app[data-theme="dark"] .taxi-phone-sheet { background: #171717; color: #f6f3ec; }
 .taxi-app[data-theme="dark"] .taxi-phone-row i.dropoff { background: #f6f3ec; }

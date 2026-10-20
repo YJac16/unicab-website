@@ -4,6 +4,7 @@ import Logo from "../../components/taxi/Logo";
 import DemoBadge from "../../components/taxi/DemoBadge";
 import ThemeToggle from "../../components/taxi/ThemeToggle";
 import useTaxiTheme from "../../taxi/useTaxiTheme";
+import { SAMPLE_GO_FARE, formatZar } from "../../taxi/mockData";
 
 const ROLES = [
   {
@@ -89,7 +90,7 @@ export default function TaxiLanding() {
                 <strong>Where to?</strong>
                 <span className="taxi-phone-row"><i className="pickup" />Cape Town CBD</span>
                 <span className="taxi-phone-row"><i className="dropoff" />V&amp;A Waterfront</span>
-                <span className="taxi-phone-fare">UNICAB Go · R86</span>
+                <span className="taxi-phone-fare">UNICAB Go · {formatZar(SAMPLE_GO_FARE.total)}</span>
               </div>
             </div>
           </div>

@@ -36,7 +36,7 @@ Every screen shows a small **Demo** badge. Trips, riders, and fares are sample d
 ## Tech
 
 - **Vite + React** static SPA (`npm run build` → `dist/`)
-- **Leaflet + CARTO** basemaps (Positron and Dark Matter, free OSM tiles, no API key)
+- **Leaflet + OpenStreetMap** standard tiles (no API key). Light and dark are CSS filters on the tiles, with OSM attribution
 - **Client-side mock data** in `src/taxi/mockData.js` (Cape Town CBD, Waterfront, Airport, etc.)
 - Light and dark themes, stored only in the browser
 - Legacy `/api/*` serverless handlers remain for old travel ops but are **not** used by the taxi demo
