@@ -26,17 +26,21 @@ SPA routes (`/ride`, `/drive`, legacy `/tours/*`, etc.) are handled by the catch
 
 | Route | Role |
 |-------|------|
-| `/` | Landing — choose Rider or Driver |
-| `/ride` | Passenger flow: map → confirm → waiting → in-trip → rate |
-| `/drive` | Driver flow: online/offline → accept job → pickup → start → complete |
+| `/` | Landing — ride, drive, dispatch, control room, or the pitch. Light and dark themes |
+| `/ride` | Passenger flow for sample trip T-1048. Confirming writes the shared sample story |
+| `/drive` | Same trip for the partner, after dispatch assigns it |
+| `/dispatch` | Sample board with nearest-partner ranking. Assignments stay in this browser |
+| `/control` | Control room for the same sample day, including the live T-1048 status |
+| `/pitch` | Why Unicab. Demonstrated, proposed, and illustrative are labelled. Safety beyond the sample screens is roadmap |
 
-Every screen shows a **“Demo — simulated trips”** banner.
+Every screen shows a small **Demo** badge. Trips, riders, and fares are sample data.
 
 ## Tech
 
 - **Vite + React** static SPA (`npm run build` → `dist/`)
-- **Leaflet + OpenStreetMap** tiles (no Mapbox, no API keys)
+- **Leaflet + OpenStreetMap** standard tiles (no API key). Light and dark are CSS filters on the tiles, with OSM attribution
 - **Client-side mock data** in `src/taxi/mockData.js` (Cape Town CBD, Waterfront, Airport, etc.)
+- Light and dark themes, stored only in the browser
 - Legacy `/api/*` serverless handlers remain for old travel ops but are **not** used by the taxi demo
 
 ## Finance / infra constraints (Sep 2026)
@@ -44,7 +48,7 @@ Every screen shows a **“Demo — simulated trips”** banner.
 - No Mapbox, no paid map tiles, no Realtime GPS firehose
 - No second Supabase project; existing Supabase wiring is **not** used for live tracking
 - No new Railway service; Vercel Hobby only for this pitch
-- Drivers never see fares in the driver UI; riders may see a fake all-in estimate
+- Fares and partner earnings in the demo are sample figures only
 - No cross-sell of Travel tours/membership in the taxi demo UI
 
 ## Legacy ops routes

@@ -1,221 +1,389 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import DemoBanner from "../../components/taxi/DemoBanner";
+import TaxiChrome from "../../components/taxi/TaxiChrome";
 import BottomSheet from "../../components/taxi/BottomSheet";
 import TaxiMap from "../../components/taxi/TaxiMap";
-import { CANNED_DRIVER_JOB, routePoints, lerpRoute } from "../../taxi/mockData";
+import SwipeConfirm from "../../components/taxi/SwipeConfirm";
+import useTaxiTheme from "../../taxi/useTaxiTheme";
+import {
+  acceptSampleJob,
+  completeSampleTrip,
+  declineSampleJob,
+  markArrived,
+  startSampleTrip,
+  useDemoSession,
+} from "../../taxi/demoSession";
+import {
+  CANNED_DRIVER_JOB,
+  CONTROL_CLOCK,
+  DRIVER_START,
+  SAMPLE_PARTNER,
+  TODAY_TRIPS,
+  VEHICLES,
+  bearingDeg,
+  estimateEtaMinutes,
+  fareBreakdown,
+  formatKm,
+  formatZar,
+  getLocationById,
+  pointAlong,
+  roadRoute,
+  routeLengthKm,
+} from "../../taxi/mockData";
+
+const ACCEPT_SECONDS = 15;
+
+const SAMPLE_SHIFT_HOURS = (12 + 20 / 60) - (7 + 40 / 60);
 
 export default function DriverApp() {
+  const { theme, toggleTheme } = useTaxiTheme();
+  const session = useDemoSession();
+  const pickupPlace = getLocationById(session.pickupId) || CANNED_DRIVER_JOB.pickup;
+  const dropoffPlace = getLocationById(session.dropoffId) || CANNED_DRIVER_JOB.dropoff;
+  const job = {
+    ...CANNED_DRIVER_JOB,
+    pickup: pickupPlace,
+    dropoff: dropoffPlace,
+    partner: session.driverId && session.driverId !== "thabo" ? CANNED_DRIVER_JOB.partner : SAMPLE_PARTNER,
+  };
+  const pickupRoute = useMemo(() => roadRoute(DRIVER_START, job.pickup), [job.pickup]);
+  const tripRoute = useMemo(() => roadRoute(job.pickup, job.dropoff), [job.pickup, job.dropoff]);
+  const pickupKm = routeLengthKm(pickupRoute) || 1.4;
+  const tripKm = routeLengthKm(tripRoute) || 3.6;
+  const tripMin = estimateEtaMinutes(tripKm);
+  const fare = fareBreakdown(tripKm, VEHICLES[0]);
+
+  const startPin = pickupRoute[0] || DRIVER_START;
   const [online, setOnline] = useState(false);
-  const [stage, setStage] = useState("idle");
-  const [driverPos, setDriverPos] = useState({
-    lat: CANNED_DRIVER_JOB.pickup.lat - 0.012,
-    lng: CANNED_DRIVER_JOB.pickup.lng - 0.008,
-  });
-
-  const job = CANNED_DRIVER_JOB;
-  const routeToPickup = useMemo(
-    () => routePoints(driverPos, job.pickup, 10),
-    [driverPos, job.pickup]
-  );
-  const routeTrip = useMemo(
-    () => routePoints(job.pickup, job.dropoff, 12),
-    [job.pickup, job.dropoff]
-  );
-
-  useEffect(() => {
-    if (!online || stage !== "idle") return;
-    const t = setTimeout(() => setStage("incoming"), 2200);
-    return () => clearTimeout(t);
-  }, [online, stage]);
+  const [showToday, setShowToday] = useState(false);
+  const liveStage = {
+    assigned: "incoming",
+    accepted: "to-pickup",
+    arrived: "arrived",
+    started: "in-trip",
+    complete: "complete",
+    rated: "complete",
+  }[session.phase];
+  const stage = showToday ? "today" : liveStage || (online ? "idle" : "offline");
+  const [driverPos, setDriverPos] = useState(startPin);
+  const [bearing, setBearing] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [seconds, setSeconds] = useState(ACCEPT_SECONDS);
+  const [earned, setEarned] = useState(null);
 
   useEffect(() => {
-    if (stage !== "to-pickup") return;
-    let step = 0;
-    const start = { ...driverPos };
-    const anim = setInterval(() => {
-      step += 1;
-      const t = Math.min(step / 10, 1);
-      setDriverPos(lerpRoute(start, job.pickup, t));
-      if (t >= 1) {
-        clearInterval(anim);
-        setStage("at-pickup");
-      }
-    }, 450);
-    return () => clearInterval(anim);
+    if (liveStage) setOnline(true);
+  }, [liveStage]);
+
+  useEffect(() => {
+    if (session.phase === "complete" || session.phase === "rated") setEarned(fare.total);
+  }, [session.phase, fare.total]);
+
+  useEffect(() => {
+    if (stage !== "incoming") return undefined;
+    setSeconds(ACCEPT_SECONDS);
+    const tick = setInterval(() => {
+      setSeconds((value) => {
+        if (value <= 1) {
+          clearInterval(tick);
+          declineSampleJob();
+          return 0;
+        }
+        return value - 1;
+      });
+    }, 1000);
+    return () => clearInterval(tick);
   }, [stage]);
 
   useEffect(() => {
-    if (stage !== "in-trip") return;
+    const path = stage === "to-pickup" || stage === "arrived" ? pickupRoute : stage === "in-trip" || stage === "complete" ? tripRoute : null;
+    if (!path || path.length < 2 || stage === "arrived" || stage === "complete") {
+      if (stage === "arrived") setDriverPos(job.pickup);
+      if (stage === "complete") setDriverPos(job.dropoff);
+      return undefined;
+    }
     let step = 0;
+    const steps = 18;
     const anim = setInterval(() => {
       step += 1;
-      const t = Math.min(step / 14, 1);
-      setDriverPos(lerpRoute(job.pickup, job.dropoff, t));
-      if (t >= 1) {
-        clearInterval(anim);
-        setStage("complete");
-      }
-    }, 500);
+      const cap = stage === "to-pickup" ? 0.9 : 0.94;
+      const t = Math.min(step / steps, cap);
+      const pos = pointAlong(path, t);
+      const ahead = pointAlong(path, Math.min(1, t + 0.04));
+      if (pos) setDriverPos(pos);
+      if (pos && ahead) setBearing(bearingDeg(pos, ahead));
+      setProgress(t);
+    }, 420);
     return () => clearInterval(anim);
-  }, [stage, job.pickup, job.dropoff]);
+  }, [stage, pickupRoute, tripRoute, job.pickup, job.dropoff]);
 
-  function toggleOnline() {
-    if (online) {
-      setOnline(false);
-      setStage("idle");
-      setDriverPos({
-        lat: job.pickup.lat - 0.012,
-        lng: job.pickup.lng - 0.008,
-      });
-    } else {
-      setOnline(true);
-      setStage("idle");
-    }
-  }
-
-  function acceptJob() {
-    setStage("to-pickup");
-  }
-
-  function startTrip() {
-    setStage("in-trip");
-  }
-
-  function endShift() {
+  function goOffline() {
     setOnline(false);
-    setStage("idle");
+    setShowToday(false);
+    setProgress(0);
+    setDriverPos(startPin);
   }
+
+  function goOnline() {
+    setOnline(true);
+    setShowToday(false);
+    setProgress(0);
+    setDriverPos(startPin);
+    const ahead = pointAlong(pickupRoute, 0.08);
+    if (ahead) setBearing(bearingDeg(startPin, ahead));
+  }
+
+  function openToday() {
+    setShowToday(true);
+  }
+
+  function closeToday() {
+    setShowToday(false);
+  }
+
+  const recordedEarn = earned || ((session.phase === "complete" || session.phase === "rated") ? fare.total : null);
+  const dayTrips = useMemo(() => {
+    const list = [...TODAY_TRIPS];
+    if (recordedEarn) {
+      list.unshift({
+        id: job.id,
+        time: "Now",
+        from: job.pickup.name,
+        to: job.dropoff.name,
+        earn: recordedEarn,
+        km: tripKm,
+      });
+    }
+    return list;
+  }, [recordedEarn, job, tripKm]);
+
+  const dayEarn = dayTrips.reduce((sum, trip) => sum + trip.earn, 0);
+  const perHour = Math.round(dayEarn / SAMPLE_SHIFT_HOURS);
+  const dayKm = dayTrips.reduce((sum, trip) => sum + trip.km, 0);
 
   const mapRoute =
-    stage === "to-pickup" || stage === "at-pickup"
-      ? routeToPickup
-      : stage === "in-trip"
-        ? routeTrip
-        : stage === "incoming" || stage === "complete"
-          ? routePoints(job.pickup, job.dropoff)
-          : [];
+    stage === "to-pickup" || stage === "arrived"
+      ? pickupRoute
+      : stage === "incoming" || stage === "in-trip" || stage === "dropoff" || stage === "complete"
+        ? tripRoute
+        : [];
+
+  const showCar = online && stage !== "today";
+  const showDrop = online && stage !== "idle" && stage !== "today";
+
+  const status = !online
+    ? "You are offline"
+    : stage === "incoming"
+      ? "New request"
+      : stage === "to-pickup"
+        ? "Heading to pickup"
+        : stage === "arrived"
+          ? "Arrived at pickup"
+          : stage === "in-trip"
+            ? "Trip in progress"
+            : stage === "dropoff"
+              ? "At the drop-off"
+              : stage === "complete"
+                ? "Trip complete"
+                : stage === "today"
+                  ? "Today"
+                  : "Looking for requests";
 
   return (
-    <div className="taxi-app">
-      <DemoBanner />
-      <header className="taxi-header">
-        <Link to="/" className="taxi-header-back" aria-label="Back to home">
-          ←
-        </Link>
-        <span className="taxi-header-title">UNICAB Drive</span>
+    <TaxiChrome
+      theme={theme}
+      onToggleTheme={toggleTheme}
+      action={
         <button
           type="button"
-          className={`taxi-online-pill ${online ? "on" : ""}`}
-          onClick={toggleOnline}
+          className={`taxi-online ${online ? "is-on" : ""}`}
+          aria-pressed={online}
+          onClick={() => (online ? goOffline() : goOnline())}
         >
+          <span className="taxi-online-dot" aria-hidden="true" />
           {online ? "Online" : "Offline"}
         </button>
-      </header>
-
+      }
+    >
+      <h1 className="taxi-sr">UNICAB partner</h1>
+      <p className="taxi-sr" aria-live="polite">{status}</p>
       <TaxiMap
-        pickup={online ? job.pickup : null}
-        dropoff={online && stage !== "idle" ? job.dropoff : null}
-        driverPos={online ? driverPos : null}
-        route={online ? mapRoute : []}
-        fitRoute={stage === "incoming"}
+        theme={theme}
+        pickup={online && stage !== "today" ? job.pickup : null}
+        pickupLabel={job.pickup.name}
+        dropoff={showDrop ? job.dropoff : null}
+        dropoffLabel={job.dropoff.name}
+        driverPos={showCar ? driverPos : null}
+        bearing={bearing}
+        route={online && stage !== "today" ? mapRoute : []}
+        fitRoute={online && mapRoute.length > 1 && stage !== "today"}
       />
 
-      <BottomSheet>
-        {!online && (
-          <>
-            <h2 className="taxi-sheet-title">You&apos;re offline</h2>
-            <p className="taxi-sheet-sub">Go online to receive trip requests in the demo.</p>
-            <button type="button" className="taxi-cta" onClick={toggleOnline}>
-              Go online
-            </button>
-          </>
-        )}
-
-        {online && stage === "idle" && (
-          <>
-            <h2 className="taxi-sheet-title">Waiting for requests…</h2>
-            <p className="taxi-sheet-sub">Stay in a high-demand zone. A job will arrive shortly.</p>
-            <div className="taxi-pulse" aria-hidden="true" />
-          </>
-        )}
-
-        {online && stage === "incoming" && (
-          <>
-            <h2 className="taxi-sheet-title">New trip request</h2>
-            <div className="taxi-trip-summary">
-              <div className="taxi-trip-row">
-                <span className="taxi-trip-dot pickup" />
-                <div>
-                  <div className="taxi-trip-label">Pickup</div>
-                  <div>{job.pickup.name}</div>
-                </div>
-              </div>
-              <div className="taxi-trip-row">
-                <span className="taxi-trip-dot dropoff" />
-                <div>
-                  <div className="taxi-trip-label">Drop-off</div>
-                  <div>{job.dropoff.name}</div>
-                </div>
-              </div>
+      {stage === "today" ? (
+        <section className="taxi-today" aria-labelledby="today-title">
+          <p className="taxi-kicker">Today</p>
+          <h2 id="today-title">Sample earnings</h2>
+          <p className="taxi-earn">{formatZar(dayEarn)}</p>
+          <dl className="taxi-metrics taxi-metrics-3">
+            <div>
+              <dt>Trips</dt>
+              <dd>{dayTrips.length}</dd>
             </div>
-            <p className="taxi-sheet-sub">Rider: {job.riderName} · {job.notes}</p>
-            <p className="taxi-sheet-sub">~{job.etaToPickupMin} min to pickup</p>
-            <button type="button" className="taxi-cta" onClick={acceptJob}>
-              Accept trip
-            </button>
-          </>
-        )}
+            <div>
+              <dt>Distance</dt>
+              <dd>{formatKm(dayKm)}</dd>
+            </div>
+            <div>
+              <dt>Earnings / hr</dt>
+              <dd>{formatZar(perHour)}</dd>
+            </div>
+          </dl>
+          <ul className="taxi-day-list">
+            {dayTrips.map((trip) => (
+              <li key={trip.id}>
+                <span>
+                  <strong>{trip.time} · {trip.id}</strong>
+                  <small>{trip.from} to {trip.to}</small>
+                </span>
+                <em>{formatZar(trip.earn)}</em>
+              </li>
+            ))}
+          </ul>
+          <p className="taxi-fine">Sample day through {CONTROL_CLOCK}. Illustrative hourly figure.</p>
+          <button type="button" className="taxi-cta" onClick={closeToday}>
+            Back to the map
+          </button>
+        </section>
+      ) : (
+        <BottomSheet labelledBy="drive-sheet-title">
+          {stage === "offline" && (
+            <>
+              <h2 id="drive-sheet-title" className="taxi-sheet-title">You&apos;re offline</h2>
+              <p className="taxi-sheet-sub">Go online to receive requests in the City Bowl.</p>
+              <div className="taxi-earn-row">
+                <span>Today</span>
+                <strong>{formatZar(dayEarn)}</strong>
+              </div>
+              <p className="taxi-fine">{dayTrips.length} trips · {formatKm(dayKm)}</p>
+              <button type="button" className="taxi-cta" onClick={goOnline}>Go online</button>
+              <button type="button" className="taxi-cta-secondary" onClick={openToday}>Today</button>
+            </>
+          )}
 
-        {online && stage === "to-pickup" && (
-          <>
-            <h2 className="taxi-sheet-title">Navigate to pickup</h2>
-            <p className="taxi-sheet-sub">{job.pickup.name}</p>
-            <div className="taxi-pulse slow" aria-hidden="true" />
-          </>
-        )}
+          {stage === "idle" && (
+            <>
+              <h2 id="drive-sheet-title" className="taxi-sheet-title">Looking nearby</h2>
+              <p className="taxi-sheet-sub">
+                {session.phase === "requested"
+                  ? "T-1048 is on dispatch and still unassigned."
+                  : "A request appears here after dispatch assigns you."}
+              </p>
+              <div className="taxi-skeleton" aria-hidden="true"><span /><span /></div>
+            </>
+          )}
 
-        {online && stage === "at-pickup" && (
-          <>
-            <h2 className="taxi-sheet-title">At pickup</h2>
-            <p className="taxi-sheet-sub">Passenger {job.riderName} is boarding</p>
-            <button type="button" className="taxi-cta" onClick={startTrip}>
-              Start trip
-            </button>
-          </>
-        )}
+          {stage === "incoming" && (
+            <>
+              <div className="taxi-request-head">
+                <h2 id="drive-sheet-title" className="taxi-sheet-title">New request</h2>
+                <div
+                  className="taxi-count"
+                  style={{ "--p": (seconds / ACCEPT_SECONDS) * 100 }}
+                  aria-live="polite"
+                  aria-label={`${seconds} seconds to accept`}
+                >
+                  <span>{seconds}</span>
+                </div>
+              </div>
+              <p className="taxi-kicker">Trip {job.id}</p>
+              <p className="taxi-person-name">{job.riderName}</p>
+              <p className="taxi-sheet-sub">{job.notes}</p>
+              <p className="taxi-person-meta">
+                {job.partner.colour} {job.partner.vehicle}
+              </p>
+              <p className="taxi-plate">{job.partner.plate}</p>
+              <ol className="taxi-stops">
+                <li>
+                  <span className="taxi-stop-label">Pickup</span>
+                  <span>{job.pickup.name}</span>
+                </li>
+                <li>
+                  <span className="taxi-stop-label">Drop-off</span>
+                  <span>{job.dropoff.name}</span>
+                </li>
+              </ol>
+              <p className="taxi-sheet-sub">
+                {formatKm(pickupKm)} to pickup · {formatKm(tripKm)} trip · about {tripMin} min
+              </p>
+              <div className="taxi-earn-row">
+                <span>Sample fare</span>
+                <strong>{formatZar(fare.total)}</strong>
+              </div>
+              <button type="button" className="taxi-cta" onClick={() => { setProgress(0); acceptSampleJob(); }}>Accept</button>
+              <button type="button" className="taxi-decline" onClick={declineSampleJob}>Decline</button>
+            </>
+          )}
 
-        {online && stage === "in-trip" && (
-          <>
-            <h2 className="taxi-sheet-title">Trip in progress</h2>
-            <p className="taxi-sheet-sub">Drop-off: {job.dropoff.name}</p>
-            <div className="taxi-pulse slow" aria-hidden="true" />
-          </>
-        )}
+          {stage === "to-pickup" && (
+            <>
+              <h2 id="drive-sheet-title" className="taxi-sheet-title">Heading to pickup</h2>
+              <p className="taxi-sheet-sub">{job.pickup.name} · {job.pickup.subtitle}</p>
+              <p className="taxi-eta">{formatKm(Math.max(0.1, pickupKm * (1 - progress)))}</p>
+              <div className="taxi-progress" aria-hidden="true">
+                <span style={{ width: `${Math.round(progress * 100)}%` }} />
+              </div>
+              <SwipeConfirm label="Slide to confirm arrived" confirmLabel="Confirm arrived" onConfirm={() => { setProgress(0); markArrived(); }} />
+            </>
+          )}
 
-        {online && stage === "complete" && (
-          <>
-            <h2 className="taxi-sheet-title">Trip complete</h2>
-            <p className="taxi-sheet-sub">Great job — ready for the next request.</p>
-            <button
-              type="button"
-              className="taxi-cta"
-              onClick={() => {
-                setStage("idle");
-                setDriverPos({
-                  lat: job.dropoff.lat - 0.008,
-                  lng: job.dropoff.lng - 0.006,
-                });
-              }}
-            >
-              Wait for next job
-            </button>
-            <button type="button" className="taxi-cta-secondary" onClick={endShift}>
-              Go offline
-            </button>
-          </>
-        )}
-      </BottomSheet>
-    </div>
+          {stage === "arrived" && (
+            <>
+              <h2 id="drive-sheet-title" className="taxi-sheet-title">You&apos;ve arrived</h2>
+              <p className="taxi-sheet-sub">{job.riderName} is at {job.pickup.name}.</p>
+              <p className="taxi-person-meta">{job.partner.colour} {job.partner.vehicle}</p>
+              <p className="taxi-plate">{job.partner.plate}</p>
+              <SwipeConfirm label="Slide to start trip" confirmLabel="Confirm start" onConfirm={() => { setProgress(0); startSampleTrip(); }} />
+            </>
+          )}
+
+          {stage === "in-trip" && (
+            <>
+              <h2 id="drive-sheet-title" className="taxi-sheet-title">On trip</h2>
+              <p className="taxi-sheet-sub">
+                Drop-off {job.dropoff.name} · about {Math.max(1, Math.round(tripMin * (1 - progress)))} min
+              </p>
+              <div className="taxi-progress" aria-hidden="true">
+                <span style={{ width: `${Math.round(progress * 100)}%` }} />
+              </div>
+              <SwipeConfirm label="Slide to complete trip" confirmLabel="Confirm complete" onConfirm={() => { setEarned(fare.total); completeSampleTrip(); }} />
+            </>
+          )}
+
+          {stage === "complete" && (
+            <>
+              <h2 id="drive-sheet-title" className="taxi-sheet-title">Trip complete</h2>
+              <p className="taxi-kicker">Sample earnings</p>
+              <p className="taxi-earn">{formatZar(earned || fare.total)}</p>
+              <p className="taxi-sheet-sub">
+                {formatZar(fare.total)} added for trip {job.id}. Today is now {formatZar(dayEarn)} across {dayTrips.length} trips.
+              </p>
+              <p className="taxi-fine">
+                {job.pickup.name} to {job.dropoff.name} · {formatKm(tripKm)} · illustrative {formatZar(perHour)} an hour
+              </p>
+              <button type="button" className="taxi-cta" onClick={openToday}>See today</button>
+              <button
+                type="button"
+                className="taxi-cta-secondary"
+                onClick={() => {
+                  setProgress(0);
+                  setDriverPos(job.dropoff);
+                }}
+              >
+                Stay on this sample
+              </button>
+            </>
+          )}
+        </BottomSheet>
+      )}
+    </TaxiChrome>
   );
 }

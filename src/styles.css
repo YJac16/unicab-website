@@ -291,10 +291,10 @@ a[href="/login"].btn-outline {
 }
 
 .logo-img {
-  height: 65px;
+  height: 32px;
   width: auto;
   object-fit: contain;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  filter: none;
   transition: height var(--transition-med);
 }
 
@@ -392,7 +392,7 @@ a[href="/login"].btn-outline {
   }
 
   .logo-img {
-    height: 60px;
+    height: 40px;
   }
 
   .site-header {
@@ -1114,7 +1114,7 @@ textarea:focus-visible {
 
 @media (max-width: 768px) {
   .logo-img {
-    height: 50px;
+    height: 30px;
   }
 
   .header-inner {
@@ -1365,7 +1365,7 @@ textarea:focus-visible {
   }
 
   .logo-img {
-    height: 45px;
+    height: 28px;
   }
 
   .hero-actions {

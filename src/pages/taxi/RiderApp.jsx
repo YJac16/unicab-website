@@ -1,243 +1,599 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import DemoBanner from "../../components/taxi/DemoBanner";
+import TaxiChrome from "../../components/taxi/TaxiChrome";
 import BottomSheet from "../../components/taxi/BottomSheet";
 import TaxiMap from "../../components/taxi/TaxiMap";
+import PlaceField from "../../components/taxi/PlaceField";
+import useTaxiTheme from "../../taxi/useTaxiTheme";
 import {
   LOCATIONS,
+  VEHICLES,
   DRIVERS,
-  distanceKm,
+  DRIVER_START,
+  SAMPLE_PARTNER,
+  SAMPLE_TRIP_ID,
   estimateEtaMinutes,
-  fakePriceZAR,
-  routePoints,
-  lerpRoute,
+  fareBreakdown,
+  formatKm,
+  formatZar,
+  roadRoute,
+  pointAlong,
+  bearingDeg,
+  routeLengthKm,
+  driverForClass,
+  getLocationById,
 } from "../../taxi/mockData";
+import { confirmSampleRide, pickupMinutes, rankPartners, resetSample, patchSession, useDemoSession } from "../../taxi/demoSession";
+
+const QUICK_DROPS = ["waterfront", "airport", "campsbay", "seapoint"];
+const TIPS = [0, 10, 20, 40];
+
+function initialsFor(name) {
+  return name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+const PHASE_STAGE = {
+  requested: "matching",
+  assigned: "assigned",
+  accepted: "waiting",
+  arrived: "arrived",
+  started: "in-trip",
+  complete: "arrival",
+  rated: "receipt",
+};
 
 export default function RiderApp() {
-  const [stage, setStage] = useState("home");
-  const [pickup] = useState(LOCATIONS[0]);
-  const [destinationId, setDestinationId] = useState("");
-  const [driver] = useState(DRIVERS[0]);
+  const { theme, toggleTheme } = useTaxiTheme();
+  const session = useDemoSession();
+  const [localStage, setLocalStage] = useState("plan");
+  const stage = session.phase === "complete" && localStage === "rate"
+    ? "rate"
+    : (PHASE_STAGE[session.phase] || localStage);
+  const [pickupId, setPickupId] = useState("cbd");
+  const [dropoffId, setDropoffId] = useState("");
+  const [vehicleId, setVehicleId] = useState("go");
   const [waitEta, setWaitEta] = useState(4);
-  const [driverPos, setDriverPos] = useState({ lat: driver.lat, lng: driver.lng });
   const [tripProgress, setTripProgress] = useState(0);
   const [rating, setRating] = useState(0);
+  const [tip, setTip] = useState(null);
+  const [driverPos, setDriverPos] = useState(null);
+  const [bearing, setBearing] = useState(0);
 
-  const destination = useMemo(
-    () => LOCATIONS.find((l) => l.id === destinationId),
-    [destinationId]
+  const pickup = getLocationById(pickupId);
+  const dropoff = getLocationById(dropoffId);
+  const vehicle = VEHICLES.find((item) => item.id === vehicleId) || VEHICLES[0];
+  const assignedDriver = DRIVERS.find((item) => item.id === session.driverId);
+  const fleetDriver = assignedDriver || driverForClass(vehicle.id);
+  const partner = fleetDriver.id === SAMPLE_PARTNER.id
+    ? SAMPLE_PARTNER
+    : { ...fleetDriver, initials: fleetDriver.initials || initialsFor(fleetDriver.name), plate: fleetDriver.plate };
+  const partnerEta = pickup
+    ? (rankPartners(pickup, { classId: vehicle.id }).find((row) => row.driver.id === fleetDriver.id)?.eta
+      || pickupMinutes(1.2) + vehicle.etaAdd)
+    : 4 + vehicle.etaAdd;
+  const samePlace = Boolean(pickup && dropoff && pickup.id === dropoff.id);
+  const sampleTrip = Boolean(
+    pickup?.id === "cbd" && dropoff?.id === "waterfront" && vehicle.id === "go"
   );
-
-  const km = destination ? distanceKm(pickup, destination) : 0;
-  const etaMin = estimateEtaMinutes(km);
-  const price = fakePriceZAR(km);
+  const tripId = sampleTrip ? SAMPLE_TRIP_ID : "T-1102";
   const route = useMemo(
-    () => (destination ? routePoints(pickup, destination) : []),
-    [pickup, destination]
+    () => (pickup && dropoff && !samePlace ? roadRoute(pickup, dropoff) : []),
+    [pickup, dropoff, samePlace]
   );
+  const approach = useMemo(
+    () => (pickup ? roadRoute(DRIVER_START, pickup) : []),
+    [pickup]
+  );
+  const km = route.length > 1 ? routeLengthKm(route) : 0;
+  const tripMin = estimateEtaMinutes(km);
+  const fare = vehicle && km ? fareBreakdown(km, vehicle) : null;
+  const tipAmount = tip ?? 0;
+  const receiptTotal = fare ? fare.total + tipAmount : 0;
 
   useEffect(() => {
-    if (stage !== "waiting") return;
-    setWaitEta(4);
-    const tick = setInterval(() => {
-      setWaitEta((v) => {
-        if (v <= 1) {
-          clearInterval(tick);
-          setStage("in-trip");
-          return 0;
-        }
-        return v - 1;
-      });
-    }, 1200);
-    return () => clearInterval(tick);
-  }, [stage]);
+    if (session.phase === "idle") return;
+    setPickupId(session.pickupId);
+    setDropoffId(session.dropoffId);
+    setVehicleId(session.vehicleId);
+    setRating(session.rating || 0);
+    if (session.tip != null) setTip(session.tip);
+  }, [session]);
 
   useEffect(() => {
-    if (stage !== "waiting") return;
-    const start = { lat: driver.lat, lng: driver.lng };
-    const end = pickup;
+    const path = stage === "waiting" ? approach : stage === "in-trip" ? route : null;
+    if (!path || path.length < 2) {
+      if (stage === "arrived" && pickup) setDriverPos(pickup);
+      if ((stage === "arrival" || stage === "rate" || stage === "receipt") && dropoff) setDriverPos(dropoff);
+      return undefined;
+    }
     let step = 0;
+    const steps = stage === "waiting" ? 16 : 18;
     const anim = setInterval(() => {
       step += 1;
-      const t = Math.min(step / 8, 1);
-      setDriverPos(lerpRoute(start, end, t));
-      if (t >= 1) clearInterval(anim);
-    }, 400);
+      const cap = stage === "waiting" ? 0.92 : 0.96;
+      const t = Math.min(step / steps, cap);
+      const pos = pointAlong(path, t);
+      const ahead = pointAlong(path, Math.min(1, t + 0.04));
+      if (pos) setDriverPos(pos);
+      if (pos && ahead) setBearing(bearingDeg(pos, ahead));
+      if (stage === "waiting") setWaitEta(Math.max(1, Math.ceil(partnerEta * (1 - t))));
+      if (stage === "in-trip") setTripProgress(t);
+    }, 420);
     return () => clearInterval(anim);
-  }, [stage, driver, pickup]);
+  }, [stage, approach, route, pickup, dropoff, partnerEta]);
 
-  useEffect(() => {
-    if (stage !== "in-trip" || !destination) return;
-    setTripProgress(0);
-    let step = 0;
-    const anim = setInterval(() => {
-      step += 1;
-      const t = Math.min(step / 14, 1);
-      setTripProgress(t);
-      setDriverPos(lerpRoute(pickup, destination, t));
-      if (t >= 1) {
-        clearInterval(anim);
-        setTimeout(() => setStage("done"), 600);
-      }
-    }, 500);
-    return () => clearInterval(anim);
-  }, [stage, pickup, destination]);
-
-  function handleConfirm() {
-    if (!destination) return;
-    setStage("confirm");
-  }
-
-  function handleRequestRide() {
-    setStage("waiting");
-  }
-
-  function handleNewRide() {
-    setDestinationId("");
+  function resetRide() {
+    resetSample();
+    setDropoffId("");
+    setVehicleId("go");
     setRating(0);
+    setTip(null);
     setTripProgress(0);
-    setDriverPos({ lat: driver.lat, lng: driver.lng });
-    setStage("home");
+    setDriverPos(null);
+    setLocalStage("plan");
   }
+
+  const drawnRoute = stage === "waiting" ? approach : route;
+  const showRoute = stage !== "plan" && drawnRoute.length > 1;
+  const showCar = stage === "waiting" || stage === "arrived" || stage === "in-trip" || stage === "arrival";
+  const minutesLeft = Math.max(1, Math.round(tripMin * (1 - tripProgress)));
+  const status =
+    stage === "plan"
+      ? "Choose a pickup and drop-off"
+      : stage === "vehicles"
+        ? "Choose a vehicle"
+        : stage === "confirm"
+          ? "Review your trip"
+          : stage === "matching"
+            ? "Assigning a partner"
+            : stage === "assigned"
+              ? "Waiting for the partner to accept"
+            : stage === "waiting"
+              ? "Partner is on the way"
+              : stage === "arrived"
+                ? "Partner has arrived"
+                : stage === "in-trip"
+                  ? "Trip in progress"
+                  : stage === "arrival"
+                    ? "You have arrived"
+                    : stage === "rate"
+                      ? "Rate your ride"
+                      : "Receipt";
 
   return (
-    <div className="taxi-app">
-      <DemoBanner />
-      <header className="taxi-header">
-        <Link to="/" className="taxi-header-back" aria-label="Back to home">
-          ←
-        </Link>
-        <span className="taxi-header-title">UNICAB Ride</span>
-        <span className="taxi-header-spacer" />
-      </header>
-
+    <TaxiChrome theme={theme} onToggleTheme={toggleTheme} backLabel="Back to UNICAB home">
+      <h1 className="taxi-sr">Book a UNICAB ride</h1>
+      <p className="taxi-sr" aria-live="polite">
+        {status}
+      </p>
       <TaxiMap
-        pickup={stage !== "home" ? pickup : null}
-        dropoff={destination && stage !== "home" ? destination : null}
-        driverPos={stage === "waiting" || stage === "in-trip" ? driverPos : null}
-        route={stage === "confirm" || stage === "waiting" || stage === "in-trip" ? route : []}
-        fitRoute={stage === "confirm" || stage === "waiting"}
+        theme={theme}
+        pickup={pickup}
+        pickupLabel={pickup?.name}
+        dropoff={stage !== "plan" && stage !== "waiting" ? dropoff : null}
+        dropoffLabel={dropoff?.name}
+        driverPos={showCar ? driverPos : null}
+        bearing={bearing}
+        route={showRoute ? drawnRoute : []}
+        fitRoute={showRoute}
       />
 
-      <BottomSheet>
-        {stage === "home" && (
+      <BottomSheet labelledBy="ride-sheet-title">
+        {stage === "plan" && (
           <>
-            <h2 className="taxi-sheet-title">Where to?</h2>
-            <p className="taxi-sheet-sub">Pickup: {pickup.name}</p>
-            <ul className="taxi-dest-list">
-              {LOCATIONS.filter((l) => l.id !== pickup.id).map((loc) => (
-                <li key={loc.id}>
-                  <button
-                    type="button"
-                    className={`taxi-dest-btn ${destinationId === loc.id ? "selected" : ""}`}
-                    onClick={() => setDestinationId(loc.id)}
-                  >
-                    <span className="taxi-dest-name">{loc.name}</span>
-                    <span className="taxi-dest-sub">{loc.subtitle}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <h2 id="ride-sheet-title" className="taxi-sheet-title">
+              Where to?
+            </h2>
+            <p className="taxi-sheet-sub">Cape Town. Set a pickup and a drop-off.</p>
+            <div className="taxi-route-card">
+              <div className="taxi-route-rail" aria-hidden="true">
+                <span className="taxi-rail-dot pickup" />
+                <span className="taxi-rail-line" />
+                <span className="taxi-rail-dot dropoff" />
+              </div>
+              <div className="taxi-route-fields">
+                <PlaceField
+                  id="pickup"
+                  label="Pickup"
+                  places={LOCATIONS}
+                  value={pickupId}
+                  onChange={setPickupId}
+                  excludeId={dropoffId}
+                />
+                <PlaceField
+                  id="dropoff"
+                  label="Drop-off"
+                  places={LOCATIONS}
+                  value={dropoffId}
+                  onChange={setDropoffId}
+                  excludeId={pickupId}
+                />
+              </div>
+            </div>
+            {!dropoffId && (
+              <div className="taxi-quick">
+                <p className="taxi-quick-label">Popular drop-offs</p>
+                <div className="taxi-chips">
+                  {QUICK_DROPS.map((id) => {
+                    const place = getLocationById(id);
+                    if (!place || place.id === pickupId) return null;
+                    return (
+                      <button key={id} type="button" className="taxi-chip" onClick={() => setDropoffId(id)}>
+                        {place.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {samePlace && (
+              <p className="taxi-alert" role="alert">
+                Choose two different places.
+              </p>
+            )}
+            {!dropoffId && (
+              <p className="taxi-empty-inline">Add a drop-off to see fares and vehicles.</p>
+            )}
             <button
               type="button"
               className="taxi-cta"
-              disabled={!destinationId}
-              onClick={handleConfirm}
+              disabled={!pickup || !dropoff || samePlace}
+              onClick={() => setLocalStage("vehicles")}
             >
-              Continue
+              See fares
             </button>
           </>
         )}
 
-        {stage === "confirm" && destination && (
+        {stage === "vehicles" && dropoff && fare && (
           <>
-            <h2 className="taxi-sheet-title">Confirm your trip</h2>
-            <div className="taxi-trip-summary">
-              <div className="taxi-trip-row">
-                <span className="taxi-trip-dot pickup" />
-                <div>
-                  <div className="taxi-trip-label">Pickup</div>
-                  <div>{pickup.name}</div>
-                </div>
-              </div>
-              <div className="taxi-trip-row">
-                <span className="taxi-trip-dot dropoff" />
-                <div>
-                  <div className="taxi-trip-label">Drop-off</div>
-                  <div>{destination.name}</div>
-                </div>
-              </div>
+            <h2 id="ride-sheet-title" className="taxi-sheet-title">
+              Compare classes
+            </h2>
+            <p className="taxi-sheet-sub">
+              {pickup.name} to {dropoff.name} · {formatKm(km)} · about {tripMin} min
+            </p>
+            <div className="taxi-route-fields taxi-route-edit">
+              <PlaceField id="pickup-edit" label="Pickup" places={LOCATIONS} value={pickupId} onChange={setPickupId} excludeId={dropoffId} />
+              <PlaceField id="dropoff-edit" label="Drop-off" places={LOCATIONS} value={dropoffId} onChange={setDropoffId} excludeId={pickupId} />
             </div>
-            <div className="taxi-meta-row">
-              <span>{etaMin} min ETA</span>
-              <span className="taxi-price">R{price}</span>
+            <div className="taxi-vehicles" role="radiogroup" aria-label="Vehicle class">
+              {VEHICLES.map((option) => {
+                const price = fareBreakdown(km, option);
+                const selected = option.id === vehicleId;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    className={`taxi-vehicle ${selected ? "is-selected" : ""}`}
+                    onClick={() => setVehicleId(option.id)}
+                  >
+                    <span>
+                      <span className="taxi-vehicle-name">{option.name}</span>
+                      <span className="taxi-vehicle-detail">
+                        {option.detail} · {option.seats} seats
+                      </span>
+                      <span className="taxi-vehicle-detail">
+                        {option.blurb} · arrives in {4 + option.etaAdd} min
+                      </span>
+                    </span>
+                    <span className="taxi-vehicle-price">
+                      {formatZar(price.total)}
+                      <small>Estimate</small>
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-            <p className="taxi-sheet-sub">All-in estimate · demo pricing</p>
-            <button type="button" className="taxi-cta" onClick={handleRequestRide}>
-              Request UNICAB
+            <button type="button" className="taxi-cta" onClick={() => setLocalStage("confirm")}>
+              Review trip
             </button>
-            <button type="button" className="taxi-cta-secondary" onClick={() => setStage("home")}>
-              Change destination
+            <button type="button" className="taxi-cta-secondary" onClick={() => setLocalStage("plan")}>
+              Edit route
             </button>
           </>
+        )}
+
+        {stage === "confirm" && dropoff && fare && (
+          <>
+            <h2 id="ride-sheet-title" className="taxi-sheet-title">
+              Confirm ride
+            </h2>
+            <ol className="taxi-stops">
+              <li>
+                <span className="taxi-stop-label">Pickup</span>
+                <span>{pickup.name}</span>
+              </li>
+              <li>
+                <span className="taxi-stop-label">Drop-off</span>
+                <span>{dropoff.name}</span>
+              </li>
+            </ol>
+            <dl className="taxi-fare">
+              <div>
+                <dt>Base</dt>
+                <dd>{formatZar(fare.base)}</dd>
+              </div>
+              <div>
+                <dt>Distance · {formatKm(km)}</dt>
+                <dd>{formatZar(fare.distance)}</dd>
+              </div>
+              <div>
+                <dt>{vehicle.name}</dt>
+                <dd>{vehicle.seats} seats</dd>
+              </div>
+              <div className="taxi-fare-total">
+                <dt>Estimate</dt>
+                <dd>{formatZar(fare.total)}</dd>
+              </div>
+            </dl>
+            <fieldset className="taxi-pay">
+              <legend>Payment</legend>
+              <label className="is-selected">
+                <input type="radio" name="pay" checked readOnly />
+                <span>Cash to partner</span>
+                <small>Pay in the car</small>
+              </label>
+              <label className="is-disabled" aria-disabled="true">
+                <input type="radio" name="pay" disabled />
+                <span>Card</span>
+                <small>Coming soon</small>
+              </label>
+            </fieldset>
+            <p className="taxi-fine">Arrives in {4 + vehicle.etaAdd} min · {vehicle.name} · {formatZar(fare.total)}</p>
+            <button
+              type="button"
+              className="taxi-cta"
+              onClick={() => confirmSampleRide({ pickupId, dropoffId, vehicleId })}
+            >
+              Confirm ride
+            </button>
+            <button type="button" className="taxi-cta-secondary" onClick={() => setLocalStage("vehicles")}>
+              Change vehicle
+            </button>
+          </>
+        )}
+
+        {stage === "matching" && (
+          <div aria-busy="true">
+            <p className="taxi-kicker">Trip {tripId} · sample</p>
+            <h2 id="ride-sheet-title" className="taxi-sheet-title">
+              Assigning a partner
+            </h2>
+            <p className="taxi-sheet-sub">This request is on the dispatch board. A partner has not accepted yet.</p>
+            <div className="taxi-skeleton" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </div>
+            <button type="button" className="taxi-cta-secondary" onClick={resetRide}>
+              Cancel ride
+            </button>
+          </div>
+        )}
+
+        {stage === "assigned" && (
+          <div aria-busy="true">
+            <p className="taxi-kicker">Trip {tripId} · sample</p>
+            <h2 id="ride-sheet-title" className="taxi-sheet-title">
+              Waiting for {partner.name}
+            </h2>
+            <p className="taxi-sheet-sub">Assigned. The partner still needs to accept. Arrives in {partnerEta} min after that.</p>
+            <article className="taxi-person">
+              <span className="taxi-avatar" aria-hidden="true">{partner.initials}</span>
+              <div>
+                <p className="taxi-person-name">{partner.name}</p>
+                <p className="taxi-person-meta">{partner.vehicle}</p>
+              </div>
+            </article>
+          </div>
         )}
 
         {stage === "waiting" && (
           <>
-            <h2 className="taxi-sheet-title">Driver on the way</h2>
-            <div className="taxi-driver-card">
-              <img src={driver.photo} alt="" className="taxi-driver-photo" />
+            <p className="taxi-kicker">Trip {tripId}</p>
+            <h2 id="ride-sheet-title" className="taxi-sheet-title">
+              Partner on the way
+            </h2>
+            <p className="taxi-eta">Arrives in {waitEta > 0 ? waitEta : partnerEta} min</p>
+            <article className="taxi-person">
+              <span className="taxi-avatar" aria-hidden="true">{partner.initials}</span>
               <div>
-                <div className="taxi-driver-name">{driver.name}</div>
-                <div className="taxi-driver-meta">{driver.plate} · {driver.vehicle}</div>
-                <div className="taxi-driver-uniform">{driver.uniform}</div>
+                <p className="taxi-person-name">{partner.name}</p>
+                <p className="taxi-person-meta">
+                  {partner.colour} {partner.vehicle}
+                </p>
+                <p className="taxi-plate">{partner.plate}</p>
               </div>
-            </div>
-            <p className="taxi-eta-big">{waitEta > 0 ? `${waitEta} min` : "Arriving now"}</p>
+            </article>
+            <button type="button" className="taxi-cta-secondary" onClick={resetRide}>
+              Cancel ride
+            </button>
           </>
         )}
 
-        {stage === "in-trip" && destination && (
+        {stage === "arrived" && (
           <>
-            <h2 className="taxi-sheet-title">On trip</h2>
-            <p className="taxi-sheet-sub">Heading to {destination.name}</p>
-            <div className="taxi-progress-bar">
-              <div className="taxi-progress-fill" style={{ width: `${tripProgress * 100}%` }} />
-            </div>
-            <div className="taxi-driver-card compact">
-              <img src={driver.photo} alt="" className="taxi-driver-photo small" />
+            <p className="taxi-kicker">Trip {tripId}</p>
+            <h2 id="ride-sheet-title" className="taxi-sheet-title">
+              Partner has arrived
+            </h2>
+            <p className="taxi-sheet-sub">{pickup.name} · {pickup.subtitle}</p>
+            <article className="taxi-person">
+              <span className="taxi-avatar" aria-hidden="true">{partner.initials}</span>
               <div>
-                <div className="taxi-driver-name">{driver.name}</div>
-                <div className="taxi-driver-meta">{driver.plate}</div>
+                <p className="taxi-person-name">{partner.name}</p>
+                <p className="taxi-person-meta">
+                  {partner.colour} {partner.vehicle}
+                </p>
+                <p className="taxi-person-meta">
+                  {partner.rating.toFixed(2)} · {partner.trips.toLocaleString("en-ZA")} trips
+                </p>
+                <p className="taxi-plate">{partner.plate}</p>
               </div>
+            </article>
+            <div className="taxi-contact">
+              <button type="button" disabled>
+                Call<span className="taxi-demo-tag">Demo</span>
+              </button>
+              <button type="button" disabled>
+                Message<span className="taxi-demo-tag">Demo</span>
+              </button>
             </div>
+            <p className="taxi-fine">Waiting for the partner to start the sample trip.</p>
           </>
         )}
 
-        {stage === "done" && (
+        {stage === "in-trip" && dropoff && (
           <>
-            <h2 className="taxi-sheet-title">Trip complete</h2>
-            <p className="taxi-sheet-sub">How was your ride with {driver.name}?</p>
-            <div className="taxi-stars" role="group" aria-label="Rate your driver">
-              {[1, 2, 3, 4, 5].map((n) => (
+            <p className="taxi-kicker">Trip {tripId}</p>
+            <h2 id="ride-sheet-title" className="taxi-sheet-title">
+              On trip
+            </h2>
+            <p className="taxi-eta">{minutesLeft} min</p>
+            <p className="taxi-sheet-sub">Heading to {dropoff.name}</p>
+            <div
+              className="taxi-progress"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(tripProgress * 100)}
+              aria-label="Trip progress"
+            >
+              <span style={{ width: `${Math.round(tripProgress * 100)}%` }} />
+            </div>
+            <article className="taxi-person compact">
+              <span className="taxi-avatar" aria-hidden="true">{partner.initials}</span>
+              <div>
+                <p className="taxi-person-name">{partner.name}</p>
+                <p className="taxi-plate">{partner.plate}</p>
+              </div>
+            </article>
+          </>
+        )}
+
+        {stage === "arrival" && dropoff && fare && (
+          <>
+            <p className="taxi-kicker">Trip {tripId}</p>
+            <h2 id="ride-sheet-title" className="taxi-sheet-title">
+              You&apos;ve arrived
+            </h2>
+            <p className="taxi-sheet-sub">{dropoff.name} · {dropoff.subtitle}</p>
+            <div className="taxi-earn-row">
+              <span>{vehicle.name}</span>
+              <strong>{formatZar(fare.total)}</strong>
+            </div>
+            <p className="taxi-fine">Cash to partner · plate {partner.plate}</p>
+            <button type="button" className="taxi-cta" onClick={() => setLocalStage("rate")}>
+              Rate this ride
+            </button>
+          </>
+        )}
+
+        {stage === "rate" && dropoff && fare && (
+          <>
+            <p className="taxi-kicker">Trip {tripId}</p>
+            <h2 id="ride-sheet-title" className="taxi-sheet-title">
+              Rate your ride
+            </h2>
+            <p className="taxi-sheet-sub">How was the ride with {partner.name}?</p>
+            <div className="taxi-stars" role="group" aria-label="Rate your partner">
+              {[1, 2, 3, 4, 5].map((score) => (
                 <button
-                  key={n}
+                  key={score}
                   type="button"
-                  className={`taxi-star ${rating >= n ? "active" : ""}`}
-                  onClick={() => setRating(n)}
-                  aria-label={`${n} stars`}
+                  className={rating >= score ? "is-on" : ""}
+                  aria-pressed={rating >= score}
+                  aria-label={`${score} star${score === 1 ? "" : "s"}`}
+                  onClick={() => setRating(score)}
                 >
                   ★
                 </button>
               ))}
             </div>
-            {rating > 0 && <p className="taxi-thanks">Thanks for riding with UNICAB!</p>}
-            <button type="button" className="taxi-cta" onClick={handleNewRide}>
+            <p className="taxi-quick-label">Tip, included in the total</p>
+            <div className="taxi-tips" role="group" aria-label="Tip">
+              {TIPS.map((amount) => (
+                <button
+                  key={amount}
+                  type="button"
+                  className={tip === amount ? "is-selected" : ""}
+                  aria-pressed={tip === amount}
+                  onClick={() => setTip(amount)}
+                >
+                  {amount === 0 ? "R0" : formatZar(amount)}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="taxi-cta"
+              onClick={() => {
+                patchSession({ phase: "rated", rating, tip: tipAmount });
+              }}
+            >
+              See receipt
+            </button>
+          </>
+        )}
+
+        {stage === "receipt" && dropoff && fare && (
+          <>
+            <p className="taxi-kicker">Trip {tripId}</p>
+            <h2 id="ride-sheet-title" className="taxi-sheet-title">
+              Receipt
+            </h2>
+            <p className="taxi-sheet-sub">
+              {partner.name} · {partner.colour} {partner.vehicle}
+            </p>
+            <p className="taxi-plate">{partner.plate}</p>
+            <ol className="taxi-stops">
+              <li>
+                <span className="taxi-stop-label">Pickup</span>
+                <span>{pickup.name}</span>
+              </li>
+              <li>
+                <span className="taxi-stop-label">Drop-off</span>
+                <span>{dropoff.name}</span>
+              </li>
+            </ol>
+            <dl className="taxi-fare">
+              <div>
+                <dt>Base</dt>
+                <dd>{formatZar(fare.base)}</dd>
+              </div>
+              <div>
+                <dt>Distance · {formatKm(km)}</dt>
+                <dd>{formatZar(fare.distance)}</dd>
+              </div>
+              <div>
+                <dt>Tip included</dt>
+                <dd>{formatZar(tipAmount)}</dd>
+              </div>
+              <div className="taxi-fare-total">
+                <dt>Total</dt>
+                <dd>{formatZar(receiptTotal)}</dd>
+              </div>
+            </dl>
+            <p className="taxi-fine">Tip is included in the total. Cash to partner.</p>
+            <div className="taxi-stars" aria-label={`${rating || 0} of 5 stars`}>
+              {[1, 2, 3, 4, 5].map((score) => (
+                <span key={score} className={rating >= score ? "is-on" : ""} aria-hidden="true">★</span>
+              ))}
+            </div>
+            {rating > 0 && <p className="taxi-thanks">Rated {rating} of 5 for {partner.name}</p>}
+            <button type="button" className="taxi-cta" onClick={resetRide}>
               Book another ride
             </button>
           </>
         )}
       </BottomSheet>
-    </div>
+    </TaxiChrome>
   );
 }
