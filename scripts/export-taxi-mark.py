@@ -8,7 +8,7 @@ on a transparent background. The orbit is never cropped.
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
 BRAND = ROOT / "brand"
@@ -75,6 +75,31 @@ def contain(mark: Image.Image, canvas, background=None) -> Image.Image:
     return plate
 
 
+def compact_mark(size: int, ink=(20, 20, 20, 255), background=None) -> Image.Image:
+    """Orbit ring, dot, and a U. Drawn, not cropped from the wide wordmark."""
+    image = Image.new("RGBA", (size, size), background or (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    stroke = max(1, round(size * 0.07))
+    pad = size * 0.18
+    box = [pad, pad, size - pad - 1, size - pad - 1]
+    draw.ellipse(box, outline=ink, width=stroke)
+    cx = size / 2
+    cy = size / 2
+    radius = (size - 2 * pad) / 2
+    dot = max(1, stroke * 0.72)
+    top = cy - radius
+    draw.ellipse([cx - dot, top - dot, cx + dot, top + dot], fill=ink)
+    arm = radius * 0.46
+    left = cx - arm
+    right = cx + arm
+    crown = cy - radius * 0.28
+    bowl = cy + radius * 0.38
+    draw.line([(left, crown), (left, cy)], fill=ink, width=stroke)
+    draw.line([(right, crown), (right, cy)], fill=ink, width=stroke)
+    draw.arc([left, cy - (bowl - cy), right, bowl], start=0, end=180, fill=ink, width=stroke)
+    return image
+
+
 def main() -> None:
     black = wordmark_crop(BRAND / "source-charters-black.png")
     white = wordmark_crop(BRAND / "source-charters-white.png")
@@ -83,7 +108,7 @@ def main() -> None:
     black.save(BRAND / "unicab-taxi-mark-black.png", "PNG", optimize=True)
     white.save(BRAND / "unicab-taxi-mark-white.png", "PNG", optimize=True)
 
-    icons = {size: contain(black, (size, size)) for size in (16, 32, 48)}
+    icons = {size: compact_mark(size) for size in (16, 32, 48)}
     icons[16].save(PUBLIC / "favicon-16.png", "PNG", optimize=True)
     icons[32].save(PUBLIC / "favicon-32.png", "PNG", optimize=True)
     icons[32].save(
@@ -92,9 +117,10 @@ def main() -> None:
         sizes=[(16, 16), (32, 32), (48, 48)],
         append_images=[icons[16], icons[48]],
     )
-    contain(white, (180, 180), INK).save(PUBLIC / "apple-touch-icon.png", "PNG", optimize=True)
-    contain(white, (192, 192), INK).save(PUBLIC / "icon-192.png", "PNG", optimize=True)
-    contain(white, (512, 512), INK).save(PUBLIC / "icon-512.png", "PNG", optimize=True)
+    paper = (243, 239, 230, 255)
+    compact_mark(180, background=paper).save(PUBLIC / "apple-touch-icon.png", "PNG", optimize=True)
+    compact_mark(192, background=paper).save(PUBLIC / "icon-192.png", "PNG", optimize=True)
+    compact_mark(512, background=paper).save(PUBLIC / "icon-512.png", "PNG", optimize=True)
     print(f"taxi mark {black.size[0]}x{black.size[1]}")
 
 

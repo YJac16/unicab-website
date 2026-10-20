@@ -27,8 +27,8 @@ SPA routes (`/ride`, `/drive`, legacy `/tours/*`, etc.) are handled by the catch
 | Route | Role |
 |-------|------|
 | `/` | Landing — ride, drive, or dispatch. Light and dark themes |
-| `/ride` | Passenger flow: pickup and drop-off, vehicle class, sample fare, confirm, trip, rate |
-| `/drive` | Partner flow: online/offline → accept job → pickup → start → complete. No fares |
+| `/ride` | Passenger flow for sample trip T-1048: request, partner on the way, arrived, live trip, arrival, rating and tip, receipt |
+| `/drive` | Same trip for the partner: online, request with fare and countdown, navigate, arrive, trip, sample earnings, today |
 | `/dispatch` | Sample operations board. Assignments stay in the browser |
 
 Every screen shows a small **Demo** badge. Trips, riders, and fares are sample data.
@@ -36,7 +36,7 @@ Every screen shows a small **Demo** badge. Trips, riders, and fares are sample d
 ## Tech
 
 - **Vite + React** static SPA (`npm run build` → `dist/`)
-- **Leaflet + OpenStreetMap** tiles (no Mapbox, no API keys)
+- **Leaflet + CARTO** basemaps (Positron and Dark Matter, free OSM tiles, no API key)
 - **Client-side mock data** in `src/taxi/mockData.js` (Cape Town CBD, Waterfront, Airport, etc.)
 - Light and dark themes, stored only in the browser
 - Legacy `/api/*` serverless handlers remain for old travel ops but are **not** used by the taxi demo
@@ -46,7 +46,7 @@ Every screen shows a small **Demo** badge. Trips, riders, and fares are sample d
 - No Mapbox, no paid map tiles, no Realtime GPS firehose
 - No second Supabase project; existing Supabase wiring is **not** used for live tracking
 - No new Railway service; Vercel Hobby only for this pitch
-- Drivers never see fares in the driver UI; riders may see a fake all-in estimate
+- Fares and partner earnings in the demo are sample figures only
 - No cross-sell of Travel tours/membership in the taxi demo UI
 
 ## Legacy ops routes

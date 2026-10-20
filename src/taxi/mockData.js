@@ -1,4 +1,5 @@
 /** Sample Cape Town data for the UNICAB TAXI pitch demo. Client-side only. */
+import roadGeometry from "./routes.json";
 
 export const CAPE_TOWN_CENTER = [-33.9249, 18.4241];
 
@@ -156,15 +157,47 @@ export const DISPATCH_TRIPS = [
   },
 ];
 
-/** Canned driver job. Fares stay off the driver screen. */
+/** Partner start pin. Matches the baked approach|cbd road route. */
+export const DRIVER_START = { id: "approach", name: "City Bowl", lat: -33.93688, lng: 18.4161 };
+
+/**
+ * Partner on the shared pitch trip. Plate is the demo plate SAMPLE.
+ * Photo is an initials placeholder, not a portrait.
+ */
+export const SAMPLE_PARTNER = {
+  id: "thabo",
+  name: "Thabo M.",
+  initials: "TM",
+  plate: "SAMPLE",
+  vehicle: "Toyota Corolla",
+  colour: "White",
+  classId: "go",
+  rating: 4.92,
+  trips: 1840,
+};
+
+/** One sample trip, shown the same way to the passenger and the partner. */
+export const SAMPLE_TRIP_ID = "T-1048";
+
+/** Canned partner job for the pitch demo. */
 export const CANNED_DRIVER_JOB = {
-  id: "job-demo-001",
+  id: SAMPLE_TRIP_ID,
   riderName: "Sam K.",
   pickup: LOCATIONS[0],
   dropoff: LOCATIONS[1],
-  notes: "Sample rider · main entrance",
+  notes: "Main entrance",
   etaToPickupMin: 4,
+  partner: SAMPLE_PARTNER,
+  vehicleId: "go",
 };
+
+/** Earlier trips already on the partner's day, before the live demo request. */
+export const TODAY_TRIPS = [
+  { id: "T-1012", time: "07:40", from: "Sea Point", to: "Cape Town CBD", earn: 78, km: 4.2 },
+  { id: "T-1018", time: "08:15", from: "Woodstock", to: "V&A Waterfront", earn: 64, km: 3.1 },
+  { id: "T-1024", time: "09:05", from: "Green Point", to: "Camps Bay", earn: 112, km: 6.4 },
+  { id: "T-1031", time: "10:20", from: "Cape Town CBD", to: "Kirstenbosch", earn: 146, km: 9.8 },
+];
 
 export function distanceKm(a, b) {
   const earth = 6371;
@@ -221,4 +254,39 @@ export function routePoints(from, to, steps = 16) {
     points.push(lerpRoute(from, to, i / steps));
   }
   return points;
+}
+
+/** Pre-baked driving geometry along Cape Town streets. No runtime routing call. */
+export function roadRoute(from, to) {
+  if (!from || !to) return [];
+  if (from.id && to.id && from.id !== to.id) {
+    const baked = roadGeometry[`${from.id}|${to.id}`];
+    if (baked) return baked.map(([lat, lng]) => ({ lat, lng }));
+  }
+  return routePoints(from, to, 24);
+}
+
+export function pointAlong(route, t) {
+  if (!route?.length) return null;
+  const clamped = Math.min(1, Math.max(0, t));
+  if (route.length === 1) return { lat: route[0].lat, lng: route[0].lng };
+  const scaled = clamped * (route.length - 1);
+  const index = Math.min(Math.floor(scaled), route.length - 2);
+  return lerpRoute(route[index], route[index + 1], scaled - index);
+}
+
+export function bearingDeg(from, to) {
+  if (!from || !to) return 0;
+  const lat1 = (from.lat * Math.PI) / 180;
+  const lat2 = (to.lat * Math.PI) / 180;
+  const dLng = ((to.lng - from.lng) * Math.PI) / 180;
+  const y = Math.sin(dLng) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+  return (Math.atan2(y, x) * 180) / Math.PI;
+}
+
+export function routeLengthKm(points) {
+  let km = 0;
+  for (let i = 1; i < (points?.length || 0); i += 1) km += distanceKm(points[i - 1], points[i]);
+  return km;
 }

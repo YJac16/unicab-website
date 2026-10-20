@@ -32,7 +32,7 @@ export default function PlaceField({ id, label, places, value, onChange, exclude
           aria-controls={listId}
           aria-autocomplete="list"
           autoComplete="off"
-          placeholder="Search sample places"
+          placeholder="Search places"
           value={open ? query : selected?.name || ""}
           onChange={(event) => {
             setQuery(event.target.value);
@@ -61,7 +61,7 @@ export default function PlaceField({ id, label, places, value, onChange, exclude
       {open && (
         <ul id={listId} role="listbox" aria-label={label} className="taxi-suggest">
           {results.length === 0 && (
-            <li className="taxi-suggest-empty">No sample places match that search.</li>
+            <li className="taxi-suggest-empty">No places match that search.</li>
           )}
           {results.map((place) => (
             <li key={place.id} role="presentation">

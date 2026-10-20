@@ -51,7 +51,7 @@ export default function DispatchApp() {
         trip.id === tripId ? { ...trip, status: "assigned", driverId, when: "Just assigned" } : trip
       )
     );
-    setNotice(`${tripId} assigned to ${driver?.name || "a partner"} in this demo only. Nothing was saved.`);
+    setNotice(`${tripId} assigned to ${driver?.name || "a partner"}.`);
   }
 
   return (
@@ -60,10 +60,7 @@ export default function DispatchApp() {
         <header className="taxi-dispatch-intro">
           <p className="taxi-kicker">Operations</p>
           <h1>Dispatch</h1>
-          <p>
-            A sample board for the pitch. Assignments stay in this browser tab. There is no live queue and no
-            database write.
-          </p>
+          <p>Assign the nearest partner and keep Cape Town moving.</p>
         </header>
 
         <aside className="taxi-dispatch-side" aria-label="Sample fleet">
@@ -73,7 +70,7 @@ export default function DispatchApp() {
               <dd>{openCount}</dd>
             </div>
             <div>
-              <dt>On a sample trip</dt>
+              <dt>On a trip</dt>
               <dd>{liveCount}</dd>
             </div>
             <div>
@@ -91,7 +88,7 @@ export default function DispatchApp() {
                     {driver.vehicle} · {driver.plate}
                   </small>
                 </span>
-                <em>Sample</em>
+                <em>Online</em>
               </li>
             ))}
           </ul>
@@ -106,7 +103,7 @@ export default function DispatchApp() {
             <input
               id="trip-search"
               className="taxi-search"
-              placeholder="Search rider, place, or trip id"
+              placeholder="Search rider, place, or trip"
               value={query}
               autoComplete="off"
               onChange={(event) => setQuery(event.target.value)}
@@ -142,7 +139,7 @@ export default function DispatchApp() {
           {!loading && visible.length === 0 && (
             <div className="taxi-empty-block">
               <div className="taxi-empty-mark" aria-hidden="true" />
-              <p>No sample trips match this view.</p>
+              <p>No trips match this view.</p>
               <button
                 type="button"
                 className="taxi-cta-secondary"
@@ -167,7 +164,7 @@ export default function DispatchApp() {
                       <span className="taxi-trip-id">{trip.id}</span>
                     </div>
                     <p className="taxi-person-name">{trip.rider}</p>
-                    <p className="taxi-person-meta">Sample rider · {trip.when}</p>
+                    <p className="taxi-person-meta">{trip.when}</p>
                     <ol className="taxi-stops">
                       <li>
                         <span className="taxi-stop-label">Pickup</span>
@@ -182,7 +179,7 @@ export default function DispatchApp() {
                       {trip.vehicle}
                       <strong>{formatZar(trip.estimate)}</strong>
                     </p>
-                    <p className="taxi-fine">Sample estimate. Not a charge.</p>
+                    <p className="taxi-fine">Estimate</p>
                     {driver && <p className="taxi-person-meta">Partner · {driver.name}</p>}
                     {trip.status === "request" && (
                       <form
@@ -193,7 +190,7 @@ export default function DispatchApp() {
                           assign(trip.id, String(data.get("partner") || ""));
                         }}
                       >
-                        <label htmlFor={`partner-${trip.id}`}>Assign a sample partner</label>
+                        <label htmlFor={`partner-${trip.id}`}>Assign a partner</label>
                         <div>
                           <select id={`partner-${trip.id}`} name="partner" defaultValue="">
                             <option value="" disabled>

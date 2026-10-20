@@ -10,7 +10,7 @@ const ROLES = [
     to: "/ride",
     kicker: "Passenger",
     title: "Book a ride",
-    text: "Set a pickup and drop-off, compare sample fares, and confirm a simulated trip.",
+    text: "Set a pickup and drop-off, compare fares, and confirm in a few taps.",
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M4 15h16l-1.2-4.2A2 2 0 0 0 16.9 9H7.1a2 2 0 0 0-1.9 1.8L4 15z" />
@@ -22,7 +22,7 @@ const ROLES = [
     to: "/drive",
     kicker: "Partner",
     title: "Drive a shift",
-    text: "Go online, accept a sample request, and complete the trip. Fares stay off this screen.",
+    text: "Go online, accept a request, and finish the trip with earnings for the day.",
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="12" cy="8" r="3" />
@@ -34,7 +34,7 @@ const ROLES = [
     to: "/dispatch",
     kicker: "Operations",
     title: "Open dispatch",
-    text: "Review a sample board and assign a partner. Nothing is written to a live system.",
+    text: "Watch requests come in and put a partner on each one.",
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <rect x="4" y="4" width="16" height="16" rx="2" />
@@ -62,26 +62,37 @@ export default function TaxiLanding() {
 
       <main id="taxi-main" className="taxi-landing">
         <section className="taxi-hero">
-          <p className="taxi-kicker">Taxi · Cape Town</p>
-          <h1>A quieter way across the city.</h1>
-          <p className="taxi-lede">
-            UNICAB TAXI is a clickable pitch demo. Every rider, fare, and trip on these screens is
-            sample data — there is no live GPS, no card charge, and no booking stored.
-          </p>
-          <ul className="taxi-stats" aria-label="Sample figures">
-            <li>
-              <strong>4 min</strong>
-              <span>typical sample arrival</span>
-            </li>
-            <li>
-              <strong>3</strong>
-              <span>vehicle classes</span>
-            </li>
-            <li>
-              <strong>1 city</strong>
-              <span>Cape Town, for now</span>
-            </li>
-          </ul>
+          <div className="taxi-hero-copy">
+            <p className="taxi-kicker">Taxi · Cape Town</p>
+            <h1>A quieter way across the city.</h1>
+            <p className="taxi-lede">Book in seconds. Track your partner. Pay your way.</p>
+            <ul className="taxi-stats" aria-label="City figures">
+              <li>
+                <strong>4 min</strong>
+                <span>typical arrival</span>
+              </li>
+              <li>
+                <strong>3</strong>
+                <span>vehicle classes</span>
+              </li>
+              <li>
+                <strong>1 city</strong>
+                <span>Cape Town</span>
+              </li>
+            </ul>
+          </div>
+          <div className="taxi-phone" aria-hidden="true">
+            <div className="taxi-phone-screen">
+              <div className="taxi-phone-map" />
+              <div className="taxi-phone-sheet">
+                <span className="taxi-phone-handle" />
+                <strong>Where to?</strong>
+                <span className="taxi-phone-row"><i className="pickup" />Cape Town CBD</span>
+                <span className="taxi-phone-row"><i className="dropoff" />V&amp;A Waterfront</span>
+                <span className="taxi-phone-fare">UNICAB Go · R86</span>
+              </div>
+            </div>
+          </div>
         </section>
 
         <section className="taxi-roles" aria-label="Demo roles">
@@ -101,9 +112,7 @@ export default function TaxiLanding() {
           ))}
         </section>
 
-        <p className="taxi-landing-note">
-          Pitch demo only. Travel &amp; Tours is a separate site and is not part of this ride-hail flow.
-        </p>
+        <p className="taxi-landing-note">Demo with sample data</p>
       </main>
     </div>
   );
