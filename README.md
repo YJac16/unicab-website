@@ -31,7 +31,7 @@ SPA routes (`/ride`, `/drive`, legacy `/tours/*`, etc.) are handled by the catch
 | `/drive` | Same trip for the partner, after dispatch assigns it |
 | `/dispatch` | Sample board with nearest-partner ranking. Assignments stay in this browser |
 | `/control` | Control room for the same sample day, including the live T-1048 status |
-| `/pitch` | Why Unicab, an illustrative commission sketch, the safety story, and a roadmap |
+| `/pitch` | Why Unicab. Demonstrated, proposed, and illustrative are labelled. Safety beyond the sample screens is roadmap |
 
 Every screen shows a small **Demo** badge. Trips, riders, and fares are sample data.
 

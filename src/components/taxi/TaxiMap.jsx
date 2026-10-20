@@ -38,12 +38,17 @@ function carIcon(bearing) {
 function MapResizeFix() {
   const map = useMap();
   useEffect(() => {
-    const timer = setTimeout(() => map.invalidateSize(), 120);
-    const onResize = () => map.invalidateSize();
-    window.addEventListener("resize", onResize);
+    const fix = () => map.invalidateSize();
+    const timers = [80, 240, 600].map((ms) => setTimeout(fix, ms));
+    const observer = new ResizeObserver(() => fix());
+    const container = map.getContainer();
+    observer.observe(container);
+    if (container.parentElement) observer.observe(container.parentElement);
+    window.addEventListener("resize", fix);
     return () => {
-      clearTimeout(timer);
-      window.removeEventListener("resize", onResize);
+      timers.forEach(clearTimeout);
+      observer.disconnect();
+      window.removeEventListener("resize", fix);
     };
   }, [map]);
   return null;
@@ -65,8 +70,15 @@ function FitBounds({ points, mode = "sheet", maxZoom = 15 }) {
       map.fitBounds(bounds, { ...padding, maxZoom, animate: false });
     };
     apply();
+    const timers = [120, 400].map((ms) => setTimeout(() => {
+      map.invalidateSize();
+      apply();
+    }, ms));
     window.addEventListener("resize", apply);
-    return () => window.removeEventListener("resize", apply);
+    return () => {
+      timers.forEach(clearTimeout);
+      window.removeEventListener("resize", apply);
+    };
   }, [map, points, mode, maxZoom]);
   return null;
 }

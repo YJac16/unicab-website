@@ -34,8 +34,8 @@ const ROLES = [
   },
   {
     to: "/dispatch",
-    kicker: "Operations",
-    title: "Open dispatch",
+    kicker: "Dispatch",
+    title: "Dispatch",
     text: "Watch requests come in and put a partner on each one.",
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -46,7 +46,7 @@ const ROLES = [
   },
   {
     to: "/control",
-    kicker: "Operations",
+    kicker: "Control room",
     title: "Control room",
     text: "See the city, the fleet, and the sample day on one board.",
     icon: (
@@ -103,7 +103,7 @@ export default function TaxiLanding() {
                 <strong>Where to?</strong>
                 <span className="taxi-phone-row"><i className="pickup" />Cape Town CBD</span>
                 <span className="taxi-phone-row"><i className="dropoff" />V&amp;A Waterfront</span>
-                <span className="taxi-phone-fare">UNICAB Go · {formatZar(SAMPLE_GO_FARE.total)}</span>
+                <span className="taxi-phone-fare">UNICAB Go · estimate {formatZar(SAMPLE_GO_FARE.total)}</span>
               </div>
             </div>
           </div>

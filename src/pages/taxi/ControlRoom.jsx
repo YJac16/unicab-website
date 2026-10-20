@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import TaxiChrome from "../../components/taxi/TaxiChrome";
 import TaxiMap from "../../components/taxi/TaxiMap";
 import useTaxiTheme from "../../taxi/useTaxiTheme";
-import { useDemoSession } from "../../taxi/demoSession";
+import { assignNearest, assignStaticTrip, busyDriverIds, rankPartners, useDemoSession, useStaticAssigns } from "../../taxi/demoSession";
 import {
   CONTROL_CANCELLATIONS,
   CONTROL_CLOCK,
@@ -12,6 +12,7 @@ import {
   CONTROL_PICKUP_MINUTES,
   DISPATCH_TRIPS,
   DRIVERS,
+  LOCATIONS,
   TODAY_TRIPS,
   VEHICLES,
   formatZar,
@@ -70,8 +71,11 @@ function spreadMarkers(markers) {
 export default function ControlRoom() {
   const { theme, toggleTheme } = useTaxiTheme();
   const session = useDemoSession();
+  const staticAssigns = useStaticAssigns();
   const [filter, setFilter] = useState("all");
-  const [foldsOpen, setFoldsOpen] = useState(true);
+  const [foldsOpen, setFoldsOpen] = useState(() => (
+    typeof window !== "undefined" && window.matchMedia("(min-width: 1100px)").matches
+  ));
 
   const completed = useMemo(() => {
     const done = DISPATCH_TRIPS.find((trip) => trip.id === "T-1028");
@@ -98,7 +102,13 @@ export default function ControlRoom() {
   }, []);
 
   const boardTrips = useMemo(() => {
-    const base = DISPATCH_TRIPS.filter((trip) => trip.id !== "T-1048");
+    const base = DISPATCH_TRIPS.filter((trip) => trip.id !== "T-1048").map((trip) => {
+      const driverId = staticAssigns[trip.id];
+      if (driverId && trip.status === "request") {
+        return { ...trip, status: "assigned", driverId, when: "Just assigned" };
+      }
+      return trip;
+    });
     const phase = session.phase;
     if (phase === "idle") return base;
     const pickup = getLocationById(session.pickupId);
@@ -117,13 +127,13 @@ export default function ControlRoom() {
       dropoff: dropoff?.name || "V&A Waterfront",
       vehicle: vehicle.name,
       estimate: sample?.estimate || 88,
-      when: "Live sample",
+      when: "Sample request",
       driverId: session.driverId,
     };
     const list = [live, ...base];
     const rank = { request: 0, assigned: 1, enroute: 2, done: 3 };
     return list.sort((a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9));
-  }, [session]);
+  }, [session, staticAssigns]);
 
   const liveTrips = useMemo(
     () => boardTrips.filter((trip) => trip.status !== "done"),
@@ -131,7 +141,9 @@ export default function ControlRoom() {
   );
   const finishedLive = boardTrips.find((trip) => trip.id === "T-1048" && trip.status === "done");
 
-  const tripsToday = completed.length + liveTrips.length + (finishedLive ? 1 : 0);
+  const counted = completed.length + liveTrips.length + (finishedLive ? 1 : 0);
+  const tripsToday = counted + 1;
+  const openCount = boardTrips.filter((trip) => trip.status === "request").length;
   const revenue = completed.reduce((sum, trip) => sum + trip.earn, 0) + (finishedLive ? finishedLive.estimate : 0);
   const pickupAvg = CONTROL_PICKUP_MINUTES.reduce((sum, value) => sum + value, 0) / CONTROL_PICKUP_MINUTES.length;
   const accepted = completed.length + liveTrips.filter((trip) => trip.driverId).length;
@@ -140,7 +152,7 @@ export default function ControlRoom() {
 
   const hours = HOURS.map((hour) => {
     const finished = completed.filter((trip) => trip.hour === hour).length;
-    const startedNow = hour === "12" ? liveTrips.length : 0;
+    const startedNow = hour === "12" ? liveTrips.length + (finishedLive ? 1 : 0) : 0;
     return { hour, trips: finished + startedNow };
   });
   const hourMax = Math.max(...hours.map((item) => item.trips), 1);
@@ -148,14 +160,15 @@ export default function ControlRoom() {
   const byClass = VEHICLES.map((vehicle) => ({
     id: vehicle.id,
     name: vehicle.name.replace("UNICAB ", ""),
-    amount: completed.filter((trip) => trip.classId === vehicle.id).reduce((sum, trip) => sum + trip.earn, 0),
+    amount: completed.filter((trip) => trip.classId === vehicle.id).reduce((sum, trip) => sum + trip.earn, 0)
+      + (finishedLive && vehicle.id === (session.vehicleId || "go") ? finishedLive.estimate : 0),
   }));
   const classMax = Math.max(...byClass.map((item) => item.amount), 1);
 
   const partners = ROSTER.map((row) => {
     let next = { ...row };
     if (session.driverId === row.driverId && ["assigned", "accepted", "arrived", "started"].includes(session.phase)) {
-      next = { ...next, status: "trip", tripId: "T-1048", since: "Live sample" };
+      next = { ...next, status: "trip", tripId: "T-1048", since: "Sample request" };
     } else if (session.driverId === row.driverId && (session.phase === "complete" || session.phase === "rated")) {
       next = { ...next, status: "online", tripId: "T-1048", since: "Just finished" };
     }
@@ -166,6 +179,18 @@ export default function ControlRoom() {
   const visiblePartners = partners.filter((row) => filter === "all" || row.status === filter);
 
   const mapModel = useMemo(() => buildMapModel(session), [session]);
+
+  function assignBoard(trip) {
+    if (trip.id === "T-1048") {
+      assignNearest();
+      return;
+    }
+    const pickup = LOCATIONS.find((place) => place.name === trip.pickup);
+    const classId = String(trip.vehicle).includes("Comfort") ? "comfort" : String(trip.vehicle).includes("XL") ? "xl" : "go";
+    const ranked = rankPartners(pickup, { classId, busyIds: busyDriverIds(session, staticAssigns) });
+    const pick = ranked.find((row) => !row.busy) || ranked[0];
+    if (pick) assignStaticTrip(trip.id, pick.driver.id);
+  }
 
   return (
     <TaxiChrome theme={theme} onToggleTheme={toggleTheme} scroll backLabel="Back to UNICAB home">
@@ -182,7 +207,12 @@ export default function ControlRoom() {
           <article>
             <p>Trips today</p>
             <strong>{tripsToday}</strong>
-            <span>Started on the sample day</span>
+            <span>{session.phase === "idle" ? "Sample day" : "Includes T-1048"}</span>
+          </article>
+          <article>
+            <p>Open requests</p>
+            <strong>{openCount}</strong>
+            <span>Waiting for a partner</span>
           </article>
           <article>
             <p>Revenue today</p>
@@ -234,13 +264,19 @@ export default function ControlRoom() {
 
           <div className="taxi-room-side">
             <section className="taxi-panel taxi-room-alerts" aria-labelledby="alerts-title">
-              <h2 id="alerts-title">Alerts</h2>
+              <h2 id="alerts-title">Alerts <span className="taxi-open-count">{openCount} open</span></h2>
               <ul className="taxi-alerts">
                 {boardTrips.filter((trip) => trip.status === "request").map((trip) => (
                   <li key={trip.id}>
                     <span className="taxi-status taxi-status-request">Unassigned</span>
                     <p>{trip.id} is waiting at {trip.pickup}.</p>
-                    <small>{trip.rider} · {trip.vehicle} · {formatZar(trip.estimate)}</small>
+                    <small>{trip.rider} · {trip.vehicle} · estimate {formatZar(trip.estimate)}</small>
+                    <div className="taxi-alert-actions">
+                      <button type="button" className="taxi-cta taxi-cta-inline" onClick={() => assignBoard(trip)}>
+                        Assign nearest
+                      </button>
+                      <Link to="/dispatch" className="taxi-text-link">Open in dispatch</Link>
+                    </div>
                   </li>
                 ))}
                 {!(session.driverId === "thabo" && ["assigned", "accepted", "arrived", "started"].includes(session.phase)) && (
@@ -266,11 +302,11 @@ export default function ControlRoom() {
                   <li key={trip.id}>
                     <span>
                       <strong>{trip.id}</strong>
-                      <small>{trip.rider} · {trip.pickup} to {trip.dropoff}</small>
+                      <small>{trip.when} · {trip.rider} · {trip.pickup} to {trip.dropoff}</small>
                     </span>
                     <em>
                       {STATUS_LABEL[trip.status]}
-                      <small>{driver ? driver.name : "Unassigned"} · {formatZar(trip.estimate)}</small>
+                      <small>{driver ? driver.name : "Unassigned"} · estimate {formatZar(trip.estimate)}</small>
                     </em>
                   </li>
                 );

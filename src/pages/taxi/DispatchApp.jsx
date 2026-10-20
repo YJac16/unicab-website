@@ -7,9 +7,11 @@ import {
   assignDriver,
   assignNearest,
   busyDriverIds,
+  assignStaticTrip,
   patchSession,
   rankPartners,
   useDemoSession,
+  useStaticAssigns,
 } from "../../taxi/demoSession";
 import { DISPATCH_TRIPS, DRIVERS, LOCATIONS, formatKm, formatZar, getLocationById } from "../../taxi/mockData";
 
@@ -43,8 +45,9 @@ function liveStatus(phase) {
 export default function DispatchApp() {
   const { theme, toggleTheme } = useTaxiTheme();
   const session = useDemoSession();
+  const staticAssigns = useStaticAssigns();
   const [loading, setLoading] = useState(true);
-  const [localTrips, setLocalTrips] = useState(() => DISPATCH_TRIPS.filter((trip) => trip.id !== "T-1048"));
+  const localTrips = useMemo(() => DISPATCH_TRIPS.filter((trip) => trip.id !== "T-1048"), []);
   const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
   const [notice, setNotice] = useState("");
@@ -76,19 +79,26 @@ export default function DispatchApp() {
       vehicle,
       classId: session.vehicleId,
       estimate: base?.estimate || 88,
-      when: "Live sample",
+      when: "Sample request",
       driverId: session.driverId,
       live: true,
     };
   }, [session]);
 
   const trips = useMemo(() => {
-    const list = liveTrip ? [liveTrip, ...localTrips] : localTrips;
+    const stamped = localTrips.map((trip) => {
+      const driverId = staticAssigns[trip.id];
+      if (driverId && trip.status === "request") {
+        return { ...trip, status: "assigned", driverId, when: "Just assigned" };
+      }
+      return trip;
+    });
+    const list = liveTrip ? [liveTrip, ...stamped] : stamped;
     return [...list].sort((a, b) => {
       const rank = { request: 0, assigned: 1, enroute: 2, done: 3 };
       return (rank[a.status] ?? 9) - (rank[b.status] ?? 9);
     });
-  }, [liveTrip, localTrips]);
+  }, [liveTrip, localTrips, staticAssigns]);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -102,7 +112,15 @@ export default function DispatchApp() {
   const openTrips = trips.filter((trip) => trip.status === "request");
   const openCount = openTrips.length;
   const liveCount = trips.filter((trip) => trip.status === "assigned" || trip.status === "enroute").length;
-  const busy = busyDriverIds(session);
+  const busy = busyDriverIds(session, staticAssigns);
+  const focusTrip = openTrips[0];
+  const focusPickup = focusTrip ? placeByName(focusTrip.pickup) : getLocationById(session.pickupId || "cbd");
+  const focusClass = focusTrip
+    ? (focusTrip.classId || (String(focusTrip.vehicle).includes("Comfort") ? "comfort" : String(focusTrip.vehicle).includes("XL") ? "xl" : "go"))
+    : (session.vehicleId || "go");
+  const fleetRank = rankPartners(focusPickup, { classId: focusClass, busyIds: busy });
+  const nearestId = fleetRank.find((row) => !row.busy)?.driver.id || "";
+  const fleetById = Object.fromEntries(fleetRank.map((row) => [row.driver.id, row]));
 
   const mapMarkers = useMemo(() => {
     const markers = DRIVERS.map((driver) => ({
@@ -135,9 +153,7 @@ export default function DispatchApp() {
       return;
     }
     const driver = DRIVERS.find((item) => item.id === driverId);
-    setLocalTrips((current) =>
-      current.map((trip) => (trip.id === tripId ? { ...trip, status: "assigned", driverId, when: "Just assigned" } : trip))
-    );
+    assignStaticTrip(tripId, driverId);
     setNotice(`${tripId} assigned to ${driver?.name || "a partner"}. Sample only.`);
   }
 
@@ -188,16 +204,24 @@ export default function DispatchApp() {
             </div>
           </dl>
           <ul className="taxi-fleet">
-            {DRIVERS.map((driver) => (
-              <li key={driver.id}>
-                <span className="taxi-avatar" aria-hidden="true">{driver.initials}</span>
-                <span>
-                  <strong>{driver.name}</strong>
-                  <small>{driver.vehicle} · {driver.plate}</small>
-                </span>
-                <em>{busy.has(driver.id) ? "On trip" : "Online"}</em>
-              </li>
-            ))}
+            {DRIVERS.map((driver) => {
+              const row = fleetById[driver.id];
+              const nearest = driver.id === nearestId;
+              return (
+                <li key={driver.id} className={nearest ? "is-nearest" : ""}>
+                  <span className="taxi-avatar" aria-hidden="true">{driver.initials}</span>
+                  <span>
+                    <strong>
+                      {driver.name}
+                      {nearest && <span className="taxi-nearest"> Nearest</span>}
+                    </strong>
+                    <small>{driver.vehicle} · {driver.plate}</small>
+                    {row && <small>{row.eta} min · {formatKm(row.km)}</small>}
+                  </span>
+                  <em>{busy.has(driver.id) ? "On trip" : "Online"}</em>
+                </li>
+              );
+            })}
           </ul>
         </aside>
 

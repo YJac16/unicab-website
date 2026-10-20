@@ -20,7 +20,7 @@ export const IDLE_SESSION = {
   rating: 0,
   tip: null,
   demoRunning: false,
-  demoLabel: "Sample story is ready",
+  demoLabel: "Sample story",
   notice: "",
 };
 
@@ -88,8 +88,46 @@ export function pickupMinutes(km) {
   return Math.max(2, Math.round(km / 0.5));
 }
 
-export function busyDriverIds(session) {
+const STATIC_KEY = "unicab-static-assigns";
+
+export function readStaticAssigns() {
+  try {
+    return JSON.parse(localStorage.getItem(STATIC_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+export function assignStaticTrip(tripId, driverId) {
+  const next = { ...readStaticAssigns(), [tripId]: driverId };
+  try {
+    localStorage.setItem(STATIC_KEY, JSON.stringify(next));
+  } catch {
+    /* private mode */
+  }
+  window.dispatchEvent(new CustomEvent("unicab-static-assigns", { detail: next }));
+  return next;
+}
+
+export function useStaticAssigns() {
+  const [assigns, setAssigns] = useState(readStaticAssigns);
+  useEffect(() => {
+    const apply = () => setAssigns(readStaticAssigns());
+    window.addEventListener("unicab-static-assigns", apply);
+    window.addEventListener("storage", apply);
+    return () => {
+      window.removeEventListener("unicab-static-assigns", apply);
+      window.removeEventListener("storage", apply);
+    };
+  }, []);
+  return assigns;
+}
+
+export function busyDriverIds(session, staticAssigns = {}) {
   const busy = new Set(["andre", "leah"]);
+  Object.values(staticAssigns).forEach((id) => {
+    if (id) busy.add(id);
+  });
   if (session?.driverId && ACTIVE.includes(session.phase)) busy.add(session.driverId);
   return busy;
 }
@@ -171,7 +209,35 @@ export function completeSampleTrip() {
 }
 
 export function resetSample() {
+  try {
+    localStorage.removeItem(STATIC_KEY);
+  } catch {
+    /* private mode */
+  }
+  window.dispatchEvent(new CustomEvent("unicab-static-assigns", { detail: {} }));
   return writeSession({ ...IDLE_SESSION });
+}
+
+export const DEMO_STEP_LABELS = [
+  "Passenger confirms",
+  "Dispatch assigns",
+  "Partner accepts",
+  "Partner arrives",
+  "Trip starts",
+  "Trip completes",
+];
+
+export function completedDemoSteps(session) {
+  switch (session?.phase) {
+    case "requested": return 1;
+    case "assigned": return 2;
+    case "accepted": return 3;
+    case "arrived": return 4;
+    case "started": return 5;
+    case "complete":
+    case "rated": return 6;
+    default: return 0;
+  }
 }
 
 let demoTimer = null;
@@ -187,29 +253,39 @@ export function stopDemo() {
 
 const DEMO_STEPS = [
   {
-    label: "Passenger confirms T-1048",
+    label: DEMO_STEP_LABELS[0],
     run: () => confirmSampleRide({ pickupId: "cbd", dropoffId: "waterfront", vehicleId: "go" }),
   },
-  { label: "Request is on dispatch", run: () => patchSession({}) },
-  { label: "Assign nearest partner", run: () => assignNearest() },
-  { label: "Partner accepts", run: () => acceptSampleJob() },
-  { label: "Partner arrives", run: () => markArrived() },
-  { label: "Trip starts", run: () => startSampleTrip() },
-  { label: "Trip completes", run: () => completeSampleTrip() },
+  { label: DEMO_STEP_LABELS[1], run: () => assignNearest() },
+  { label: DEMO_STEP_LABELS[2], run: () => acceptSampleJob() },
+  { label: DEMO_STEP_LABELS[3], run: () => markArrived() },
+  { label: DEMO_STEP_LABELS[4], run: () => startSampleTrip() },
+  { label: DEMO_STEP_LABELS[5], run: () => completeSampleTrip() },
 ];
+
+export function nextDemoStep() {
+  const done = completedDemoSteps(readSession());
+  const step = DEMO_STEPS[done];
+  if (!step) return readSession();
+  step.run();
+  return patchSession({
+    demoRunning: false,
+    demoLabel: `Step ${done + 1} of 6 · ${step.label}`,
+  });
+}
 
 export function startDemo() {
   if (demoTimer) clearTimeout(demoTimer);
-  let index = 0;
+  let index = completedDemoSteps(readSession());
   const tick = () => {
     const step = DEMO_STEPS[index];
     if (!step) {
       demoTimer = null;
-      patchSession({ demoRunning: false, demoLabel: "Sample story complete" });
+      patchSession({ demoRunning: false, demoLabel: "Step 6 of 6 · Trip completes" });
       return;
     }
     step.run();
-    patchSession({ demoRunning: true, demoLabel: step.label });
+    patchSession({ demoRunning: true, demoLabel: `Step ${index + 1} of 6 · ${step.label}` });
     index += 1;
     demoTimer = setTimeout(tick, 1700);
   };

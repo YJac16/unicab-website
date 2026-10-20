@@ -75,6 +75,10 @@ export default function DriverApp() {
   }, [liveStage]);
 
   useEffect(() => {
+    if (session.phase === "complete" || session.phase === "rated") setEarned(fare.total);
+  }, [session.phase, fare.total]);
+
+  useEffect(() => {
     if (stage !== "incoming") return undefined;
     setSeconds(ACCEPT_SECONDS);
     const tick = setInterval(() => {
@@ -136,20 +140,21 @@ export default function DriverApp() {
     setShowToday(false);
   }
 
+  const recordedEarn = earned || ((session.phase === "complete" || session.phase === "rated") ? fare.total : null);
   const dayTrips = useMemo(() => {
     const list = [...TODAY_TRIPS];
-    if (earned) {
+    if (recordedEarn) {
       list.unshift({
         id: job.id,
         time: "Now",
         from: job.pickup.name,
         to: job.dropoff.name,
-        earn: earned,
+        earn: recordedEarn,
         km: tripKm,
       });
     }
     return list;
-  }, [earned, job, tripKm]);
+  }, [recordedEarn, job, tripKm]);
 
   const dayEarn = dayTrips.reduce((sum, trip) => sum + trip.earn, 0);
   const perHour = Math.round(dayEarn / SAMPLE_SHIFT_HOURS);
@@ -194,6 +199,7 @@ export default function DriverApp() {
           aria-pressed={online}
           onClick={() => (online ? goOffline() : goOnline())}
         >
+          <span className="taxi-online-dot" aria-hidden="true" />
           {online ? "Online" : "Offline"}
         </button>
       }
@@ -325,7 +331,7 @@ export default function DriverApp() {
               <div className="taxi-progress" aria-hidden="true">
                 <span style={{ width: `${Math.round(progress * 100)}%` }} />
               </div>
-              <SwipeConfirm label="Slide to confirm arrived" onConfirm={() => { setProgress(0); markArrived(); }} />
+              <SwipeConfirm label="Slide to confirm arrived" confirmLabel="Confirm arrived" onConfirm={() => { setProgress(0); markArrived(); }} />
             </>
           )}
 
@@ -335,7 +341,7 @@ export default function DriverApp() {
               <p className="taxi-sheet-sub">{job.riderName} is at {job.pickup.name}.</p>
               <p className="taxi-person-meta">{job.partner.colour} {job.partner.vehicle}</p>
               <p className="taxi-plate">{job.partner.plate}</p>
-              <SwipeConfirm label="Slide to start trip" onConfirm={() => { setProgress(0); startSampleTrip(); }} />
+              <SwipeConfirm label="Slide to start trip" confirmLabel="Confirm start" onConfirm={() => { setProgress(0); startSampleTrip(); }} />
             </>
           )}
 
@@ -348,7 +354,7 @@ export default function DriverApp() {
               <div className="taxi-progress" aria-hidden="true">
                 <span style={{ width: `${Math.round(progress * 100)}%` }} />
               </div>
-              <SwipeConfirm label="Slide to complete trip" onConfirm={() => { setEarned(fare.total); completeSampleTrip(); }} />
+              <SwipeConfirm label="Slide to complete trip" confirmLabel="Confirm complete" onConfirm={() => { setEarned(fare.total); completeSampleTrip(); }} />
             </>
           )}
 
@@ -358,9 +364,11 @@ export default function DriverApp() {
               <p className="taxi-kicker">Sample earnings</p>
               <p className="taxi-earn">{formatZar(earned || fare.total)}</p>
               <p className="taxi-sheet-sub">
-                Trip {job.id} · {job.pickup.name} to {job.dropoff.name} · {formatKm(tripKm)}
+                {formatZar(fare.total)} added for trip {job.id}. Today is now {formatZar(dayEarn)} across {dayTrips.length} trips.
               </p>
-              <p className="taxi-fine">{job.partner.vehicle} · {job.partner.plate}</p>
+              <p className="taxi-fine">
+                {job.pickup.name} to {job.dropoff.name} · {formatKm(tripKm)} · illustrative {formatZar(perHour)} an hour
+              </p>
               <button type="button" className="taxi-cta" onClick={openToday}>See today</button>
               <button
                 type="button"

@@ -283,7 +283,10 @@ export default function RiderApp() {
                         {option.blurb} · arrives in {4 + option.etaAdd} min
                       </span>
                     </span>
-                    <span className="taxi-vehicle-price">{formatZar(price.total)}</span>
+                    <span className="taxi-vehicle-price">
+                      {formatZar(price.total)}
+                      <small>Estimate</small>
+                    </span>
                   </button>
                 );
               })}
@@ -337,7 +340,7 @@ export default function RiderApp() {
                 <span>Cash to partner</span>
                 <small>Pay in the car</small>
               </label>
-              <label className="is-disabled">
+              <label className="is-disabled" aria-disabled="true">
                 <input type="radio" name="pay" disabled />
                 <span>Card</span>
                 <small>Coming soon</small>
@@ -514,7 +517,7 @@ export default function RiderApp() {
                 </button>
               ))}
             </div>
-            <p className="taxi-quick-label">Tip</p>
+            <p className="taxi-quick-label">Tip, included in the total</p>
             <div className="taxi-tips" role="group" aria-label="Tip">
               {TIPS.map((amount) => (
                 <button
@@ -570,7 +573,7 @@ export default function RiderApp() {
                 <dd>{formatZar(fare.distance)}</dd>
               </div>
               <div>
-                <dt>Tip</dt>
+                <dt>Tip included</dt>
                 <dd>{formatZar(tipAmount)}</dd>
               </div>
               <div className="taxi-fare-total">
@@ -578,7 +581,7 @@ export default function RiderApp() {
                 <dd>{formatZar(receiptTotal)}</dd>
               </div>
             </dl>
-            <p className="taxi-fine">Cash to partner</p>
+            <p className="taxi-fine">Tip is included in the total. Cash to partner.</p>
             <div className="taxi-stars" aria-label={`${rating || 0} of 5 stars`}>
               {[1, 2, 3, 4, 5].map((score) => (
                 <span key={score} className={rating >= score ? "is-on" : ""} aria-hidden="true">★</span>
